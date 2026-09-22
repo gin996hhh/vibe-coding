@@ -83,8 +83,20 @@ Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 
 ---
 
-## 六、将来怎么发到网上
+## 六、公网地址（2026-09-22 已发布）
 
-`TECH_DESIGN.md` 定的路线是 **GitHub Pages**：把这个仓库（`gin996hhh/vibe-coding`）的 Pages 打开，`index.html` 就变成一个公开网址，手机也能打开。
+按 `TECH_DESIGN.md` 定的路线开了 **GitHub Pages**，手机和别人的电脑都能打开了：
 
-⚠️ 注意：真上公网后，数据仍然只存在**每个访客自己的浏览器**里——你手机上看不到电脑上填的记录。跨设备是 Day 15 接 CloudBase 之后的事。
+| 页面 | 公网地址 |
+|---|---|
+| 首页（F1 拆解入口） | https://gin996hhh.github.io/vibe-coding/ |
+| 三环拆解 | https://gin996hhh.github.io/vibe-coding/decompose.html |
+| 今日（F2 体检 + 锚点） | https://gin996hhh.github.io/vibe-coding/today.html |
+| 复盘（F3 复盘卡） | https://gin996hhh.github.io/vibe-coding/reflect.html |
+| 成长（F4 累积） | https://gin996hhh.github.io/vibe-coding/growth.html |
+
+**公网是 https 开头，localStorage 正常可用** —— 不会出现第三节说的 `file://` 那种存不进去的问题。
+
+**以后改了代码怎么更新**：本地 commit + push 到 `main`，GitHub 会自己重新部署，等 1～2 分钟刷新就是新版（进度看仓库 Actions 标签里的 `pages build and deployment`）。
+
+⚠️ 数据仍然只存在**每个访客自己的浏览器**里 —— 你手机上看不到电脑上填的记录，别人打开也是空白。跨设备是 Day 15 接 CloudBase 之后的事。
