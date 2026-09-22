@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>锚点 · 三环拆解</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* 兜底：任何一段脚本出错，都写进页面里，不让人对着白屏猜 */
+    window.__err = [];
+    window.onerror = function (msg, src, line, col) {
+      window.__err.push(String(msg) + '（' + String(src).split('/').pop() + ' 第' + line + '行）');
+      var box = document.getElementById('errBox');
+      if (box) box.textContent = '⚠️ 页面报错：' + window.__err.join(' ｜ ');
+    };
+  </script>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- 报错框：平时是空的、不占位；一出错就在这里显示 -->
+    <pre id="errBox" style="display:none"></pre>
+
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="today.html">今日</a>
+      <a href="reflect.html">复盘</a>
+      <a href="growth.html">成长</a>
+    </nav>
+
+    <h1>三环拆解</h1>
+    <p class="muted">结果 = 状态 × 频率 × 方法。三个都立住，事情才动得起来。</p>
+
+    <!-- 没有目标时的提示（两种原因分开说，不让人猜） -->
+    <div class="card" id="emptyCard" style="display:none">
+      <p id="emptyMsg">还没有目标。先去首页写一句你想做成的事。</p>
+      <a href="index.html"><button>去首页</button></a>
+    </div>
+
+    <!-- 正常内容 -->
+    <div id="main" style="display:none">
+
+      <div class="card">
+        <p class="muted" style="margin:0">你的目标</p>
+        <p id="goalText" style="font-size:18px;font-weight:600;margin:4px 0 0"></p>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top:0">三环</h2>
+        <div id="rings"></div>
+        <p id="ringsWarn" class="muted" style="display:none;color:#c0392b"></p>
+      </div>
+
+      <div class="card">
+        <p class="muted" style="margin-top:0">看完了就去今天，做今天的那一项。</p>
+        <a href="today.html"><button>去今日</button></a>
+      </div>
+
+    </div>
+
+    <!-- 诊断条：页面上直接显示"数据到底读进来没有"。验证跑通后可删。 -->
+    <p id="diag" style="margin-top:24px;font-size:12px;color:#9aa4b2;text-align:center;line-height:1.8"></p>
+
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/decompose.js"></script>
+  <script>
+    var goal = Store.getGoal();
+    var storageOK = Store.isAvailable();
+    var hasGoal = !!(goal && goal.content);
+    var ringCount = 0;
+    var ringState = '未生成';
+
+    /* ---------- 1. 没有目标 ---------- */
+    if (!hasGoal) {
+      document.getElementById('emptyCard').style.display = 'block';
+      // 存储被禁时，说清是"没写"还是"存不进"
+      if (!storageOK) {
+        document.getElementById('emptyMsg').innerHTML =
+          '读不到目标，而且这个页面的<b>存储权限被浏览器禁掉了</b>——'
+          + '在首页写的东西根本没存下来。<br>'
+          + '最常见的原因：你是<b>双击 html 文件</b>打开的（地址栏开头是 <code>file://</code>）。<br>'
+          + '改法：把地址栏换成 <b>http://localhost:8000/</b>，从首页重新走一遍。';
+      }
+
+    /* ---------- 2. 有目标 ---------- */
+    } else {
+      document.getElementById('main').style.display = 'block';
+      document.getElementById('goalText').textContent = goal.content;
+
+      // 三环：没有就生成；已有但结构不对就重建
+      var rings = goal.three_rings;
+      if (!rings || !rings.state || !rings.frequency || !rings.method) {
+        rings = Decompose.buildRings(goal.content);
+        goal.three_rings = rings;
+        Store.saveGoal(goal);
+        ringState = '本次生成';
+      } else {
+        ringState = '已有';
+      }
+
+      // 渲染
+      var box = document.getElementById('rings');
+      var order = ['state', 'frequency', 'method'];
+      for (var i = 0; i < order.length; i++) {
+        var key = order[i];
+        var ring = rings[key];
+        if (!ring) continue;
+
+        var div = document.createElement('div');
+        div.className = 'ring';
+
+        var nameEl = document.createElement('div');
+        nameEl.className = 'ring-name';
+        nameEl.textContent = (i + 1) + '. ' + Decompose.RING_LABELS[key];
+
+        var line = document.createElement('div');
+        line.className = 'ring-line';
+        line.textContent = ring.text;
+
+        var adj = document.createElement('div');
+        adj.className = 'ring-adjust';
+        adj.textContent = '可调项：' + ring.adjustable;
+
+        div.appendChild(nameEl);
+        div.appendChild(line);
+        div.appendChild(adj);
+        box.appendChild(div);
+        ringCount++;
+      }
+
+      if (ringCount === 0) {
+        var warn = document.getElementById('ringsWarn');
+        warn.style.display = 'block';
+        warn.textContent = '三环没渲染出来——数据里没有可显示的内容。请把这行字截图发给 WorkBuddy。';
+      }
+    }
+
+    /* ---------- 3. 诊断条：一眼看出断在哪一环 ---------- */
+    var d = [];
+    d.push('存储' + (storageOK ? '可用' : '被禁'));
+    d.push('目标' + (hasGoal ? '已读到「' + (goal.content || '').slice(0, 12) + '」' : '未读到'));
+    d.push('三环' + ringState);
+    d.push('渲染' + ringCount + '环');
+    if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
+
+    var diagEl = document.getElementById('diag');
+    diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
+    diagEl.style.color = window.__err.length ? '#c0392b' : '#9aa4b2';
+    if (window.__err.length) document.getElementById('errBox').style.display = 'none';
+  </script>
+</body>
+</html>

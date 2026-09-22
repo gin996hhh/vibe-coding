@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>锚点 · 今日</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* 兜底：任何一段脚本出错，都写进页面里，不让人对着白屏猜 */
+    window.__err = [];
+    window.onerror = function (msg, src, line) {
+      window.__err.push(String(msg) + '（' + String(src).split('/').pop() + ' 第' + line + '行）');
+      var box = document.getElementById('errBox');
+      if (box) { box.style.display = 'block'; box.textContent = '⚠️ 页面报错：' + window.__err.join(' ｜ '); }
+    };
+  </script>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- 报错框：平时隐藏，一出错就显示 -->
+    <pre id="errBox" style="display:none;color:#c0392b;white-space:pre-wrap;font-size:13px"></pre>
+
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="today.html" class="active">今日</a>
+      <a href="reflect.html">复盘</a>
+      <a href="growth.html">成长</a>
+    </nav>
+
+    <h1>今日</h1>
+    <p class="muted">状态不对，努力白费。所以今天不从"做什么"开始，从"你现在什么状态"开始。</p>
+
+    <!-- 没有目标 -->
+    <div class="card" id="noGoalCard" style="display:none">
+      <p>还没有目标，锚点无从谈起。先去首页写一句你想做成的事。</p>
+      <a href="index.html"><button>去首页</button></a>
+    </div>
+
+    <!-- 体检 -->
+    <div class="card" id="checkinCard" style="display:none">
+      <h2 style="margin-top:0">先看状态</h2>
+      <p class="muted">三个数字，几秒钟。不用准确，凭感觉——它是给你自己看的读数，不是给谁交的作业。</p>
+
+      <p class="q">1. 昨晚睡了多久？<span class="picked" id="pickedSleep"></span></p>
+      <div class="scale" id="scaleSleep"></div>
+      <p class="muted" id="hintSleep" style="font-size:12px;margin:2px 0 0"></p>
+
+      <p class="q">2. 今天的精力？<span class="picked" id="pickedEnergy"></span></p>
+      <div class="scale" id="scaleEnergy"></div>
+      <p class="muted" id="hintEnergy" style="font-size:12px;margin:2px 0 0"></p>
+
+      <p class="q">3. 今天的情绪？<span class="picked" id="pickedMood"></span></p>
+      <div class="scale" id="scaleMood"></div>
+      <p class="muted" id="hintMood" style="font-size:12px;margin:2px 0 0"></p>
+
+      <p style="margin-bottom:0"><button id="genBtn">生成今天的锚点</button></p>
+      <p class="tip" id="checkinTip" style="display:none">三项都要选一下，才知道该给你哪两条锚点。</p>
+    </div>
+
+    <!-- 今日锚点 -->
+    <div class="card" id="anchorCard" style="display:none">
+      <h2 style="margin-top:0">今天的锚点</h2>
+      <p class="muted">早一项、晚一项。做不完不扣分——只求不断。做完的会在下面留痕。</p>
+      <div id="anchors"></div>
+      <p class="muted" id="doneSummary" style="margin-bottom:0"></p>
+    </div>
+
+    <!-- 诊断条：验证跑通后可删 -->
+    <p id="diag" style="margin-top:24px;font-size:12px;color:#9aa4b2;text-align:center;line-height:1.8"></p>
+
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/today.js"></script>
+  <script>
+    var goal = Store.getGoal();
+    var hasGoal = !!(goal && goal.content);
+    var storageOK = Store.isAvailable();
+
+    var picked = { sleep: null, energy: null, mood: null };
+    var currentRec = null;
+    var anchorCount = 0;
+
+    /* ---------- 量表渲染 ---------- */
+    function renderScale(boxId, key, labels, pickedLabelId, hintId) {
+      var box = document.getElementById(boxId);
+      var hint = document.getElementById(hintId);
+      if (hint) hint.textContent = '1 = ' + labels[0] + '　→　5 = ' + labels[4];
+      for (var i = 0; i < 5; i++) {
+        (function (val) {
+          var b = document.createElement('button');
+          b.textContent = String(val);
+          b.title = labels[val - 1];
+          b.addEventListener('click', function () {
+            picked[key] = val;
+            // 只保留一个选中
+            var kids = box.getElementsByTagName('button');
+            for (var j = 0; j < kids.length; j++) kids[j].className = '';
+            b.className = 'on';
+            document.getElementById(pickedLabelId).textContent = labels[val - 1];
+          });
+          box.appendChild(b);
+        })(i + 1);
+      }
+    }
+
+    /* ---------- 锚点渲染 ---------- */
+    function renderAnchors(anchors, rec) {
+      var box = document.getElementById('anchors');
+      box.innerHTML = '';
+      anchorCount = 0;
+
+      var rows = [
+        { key: 'morning_done', tag: '早上', data: anchors.morning },
+        { key: 'evening_done', tag: '晚上', data: anchors.evening }
+      ];
+
+      rows.forEach(function (row) {
+        if (!row.data) return;
+        anchorCount++;
+
+        var lab = document.createElement('label');
+        lab.className = 'item' + (rec[row.key] ? ' done' : '');
+
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!rec[row.key];
+        cb.addEventListener('change', function () {
+          var patch = {};
+          patch[row.key] = cb.checked;
+          var saved = Store.upsertRecord(null, patch);
+          currentRec = saved;
+          lab.className = 'item' + (cb.checked ? ' done' : '');
+          updateSummary(saved);
+        });
+
+        var body = document.createElement('div');
+        var t1 = document.createElement('div');
+        t1.innerHTML = '<b>' + row.tag + '</b>　' + row.data.text;
+        var t2 = document.createElement('div');
+        t2.className = 'muted';
+        t2.textContent = '为什么是这条：' + row.data.reason;
+        body.appendChild(t1);
+        body.appendChild(t2);
+
+        lab.appendChild(cb);
+        lab.appendChild(body);
+        box.appendChild(lab);
+      });
+
+      updateSummary(rec);
+    }
+
+    function updateSummary(rec) {
+      var n = 0;
+      if (rec.morning_done) n++;
+      if (rec.evening_done) n++;
+      document.getElementById('doneSummary').textContent =
+        '今天完成 ' + n + ' / 2 项。' + (n === 2 ? '两项都做了，这就是"不断"。' : '');
+    }
+
+    /* ---------- 主流程 ---------- */
+    if (!hasGoal) {
+      document.getElementById('noGoalCard').style.display = 'block';
+    } else {
+      currentRec = Store.getRecord();   // 今天的记录，没有则 null
+
+      // 体检数据在，就直接显示锚点；不在，先做体检
+      if (currentRec && currentRec.checkin) {
+        var anchors = currentRec.anchors;
+        if (!anchors || !anchors.morning || !anchors.evening) {
+          anchors = Today.buildAnchors(currentRec.checkin);
+          currentRec = Store.upsertRecord(null, { anchors: anchors });
+        }
+        document.getElementById('anchorCard').style.display = 'block';
+        renderAnchors(anchors, currentRec);
+      } else {
+        document.getElementById('checkinCard').style.display = 'block';
+        renderScale('scaleSleep',  'sleep',  Today.SLEEP_LABELS,  'pickedSleep',  'hintSleep');
+        renderScale('scaleEnergy', 'energy', Today.ENERGY_LABELS, 'pickedEnergy', 'hintEnergy');
+        renderScale('scaleMood',   'mood',   Today.MOOD_LABELS,   'pickedMood',   'hintMood');
+      }
+    }
+
+    /* ---------- 生成锚点 ---------- */
+    var genBtn = document.getElementById('genBtn');
+    if (genBtn) {
+      genBtn.addEventListener('click', function () {
+        var tip = document.getElementById('checkinTip');
+        if (picked.sleep === null || picked.energy === null || picked.mood === null) {
+          tip.style.display = 'block';
+          return;
+        }
+        tip.style.display = 'none';
+
+        var anchors = Today.buildAnchors(picked);
+        var saved = Store.upsertRecord(null, { checkin: picked, anchors: anchors });
+        currentRec = saved;
+
+        document.getElementById('checkinCard').style.display = 'none';
+        document.getElementById('anchorCard').style.display = 'block';
+        renderAnchors(anchors, saved);
+      });
+    }
+
+    /* ---------- 诊断条 ---------- */
+    var d = [];
+    d.push('存储' + (storageOK ? '可用' : '被禁'));
+    d.push('目标' + (hasGoal ? '已读到' : '未读到'));
+    d.push('今日体检' + (currentRec && currentRec.checkin ? '已填' : '未填'));
+    d.push('锚点' + anchorCount + '项');
+    if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
+    var diagEl = document.getElementById('diag');
+    diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
+    diagEl.style.color = window.__err.length ? '#c0392b' : '#9aa4b2';
+  </script>
+</body>
+</html>

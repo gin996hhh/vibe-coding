@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>锚点 · 成长</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* 兜底：任何一段脚本出错，都写进页面里，不让人对着白屏猜 */
+    window.__err = [];
+    window.onerror = function (msg, src, line) {
+      window.__err.push(String(msg) + '（' + String(src).split('/').pop() + ' 第' + line + '行）');
+      var box = document.getElementById('errBox');
+      if (box) { box.style.display = 'block'; box.textContent = '⚠️ 页面报错：' + window.__err.join(' ｜ '); }
+    };
+  </script>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- 报错框：平时隐藏，一出错就显示 -->
+    <pre id="errBox" style="display:none;color:#c0392b;white-space:pre-wrap;font-size:13px"></pre>
+
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="today.html">今日</a>
+      <a href="reflect.html">复盘</a>
+      <a href="growth.html" class="active">成长</a>
+    </nav>
+
+    <h1>成长</h1>
+    <p class="muted">这里只有一个参照物：你自己的过去。没有排行榜，没有火苗，没有积分。</p>
+
+    <!-- 没有目标 -->
+    <div class="card" id="noGoalCard" style="display:none">
+      <p>还没有目标，就没有累积可言。先去首页写一句你想做成的事。</p>
+      <a href="index.html"><button>去首页</button></a>
+    </div>
+
+    <!-- 有目标但一条记录都没有 -->
+    <div class="card" id="emptyCard" style="display:none">
+      <p>还没有任何记录——今天是第一天。</p>
+      <p class="muted">先去"今日"做一次体检，那三项会成为这条曲线的起点。</p>
+      <a href="today.html"><button>去今日</button></a>
+    </div>
+
+    <!-- 累积数字 -->
+    <div class="card" id="statsCard" style="display:none">
+      <h2 style="margin-top:0">累积</h2>
+      <div class="stats">
+        <div class="stat">
+          <div class="num" id="numStreak">0</div>
+          <div class="lab">连续天数（今天没做不算断）</div>
+        </div>
+        <div class="stat">
+          <div class="num" id="numAnchors">0</div>
+          <div class="lab">累计完成锚点（项）</div>
+        </div>
+        <div class="stat">
+          <div class="num" id="numActive">0</div>
+          <div class="lab">有记录的天数</div>
+        </div>
+      </div>
+      <p class="muted" id="ratioLine" style="margin-bottom:0"></p>
+    </div>
+
+    <!-- 状态曲线 -->
+    <div class="card" id="chartCard" style="display:none">
+      <h2 style="margin-top:0">状态曲线</h2>
+      <p class="muted">每填一次复盘就落一个点。曲线有没有在动，比"感觉还行"靠得住。</p>
+      <div class="chart" id="chart"></div>
+      <p class="muted" id="chartNote" style="margin-bottom:0"></p>
+    </div>
+
+    <!-- 跟自己比 -->
+    <div class="card" id="compareCard" style="display:none">
+      <h2 style="margin-top:0">跟自己的过去比</h2>
+      <p id="compareLine"></p>
+      <p class="muted" id="compareHint" style="margin-bottom:0"></p>
+    </div>
+
+    <!-- 诊断条：验证跑通后可删 -->
+    <p id="diag" style="margin-top:24px;font-size:12px;color:#9aa4b2;text-align:center;line-height:1.8"></p>
+
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/growth.js"></script>
+  <script>
+    var goal = Store.getGoal();
+    var hasGoal = !!(goal && goal.content);
+    var storageOK = Store.isAvailable();
+    var today = Store.todayStr();
+    var records = Store.getRecords();
+    var stats = Growth.computeStats(records, today);
+    var chartPoints = 0;
+
+    function show(id) { document.getElementById(id).style.display = 'block'; }
+
+    if (!hasGoal) {
+      show('noGoalCard');
+    } else if (stats.activeDays === 0) {
+      show('emptyCard');
+    } else {
+      /* ---------- 累积数字 ---------- */
+      show('statsCard');
+      document.getElementById('numStreak').textContent  = stats.streak;
+      document.getElementById('numAnchors').textContent = stats.totalAnchors;
+      document.getElementById('numActive').textContent  = stats.activeDays;
+
+      var ratioPct = Math.round(stats.ratio * 100);
+      document.getElementById('ratioLine').textContent =
+        '从 ' + Growth.shortDate(stats.firstDate) + ' 到现在一共 ' + stats.spanDays + ' 天，其中 ' +
+        stats.activeDays + ' 天留下了记录（占 ' + ratioPct + '%）。';
+
+      /* ---------- 状态曲线 ---------- */
+      if (stats.series.length > 0) {
+        show('chartCard');
+        chartPoints = stats.series.length;
+        document.getElementById('chart').innerHTML = Growth.buildChartSvg(stats.series);
+
+        var sum = 0;
+        stats.series.forEach(function (p) { sum += p.score; });
+        var mean = sum / stats.series.length;
+        document.getElementById('chartNote').textContent =
+          stats.series.length === 1
+            ? '目前只有 1 个点（' + Growth.shortDate(stats.series[0].date) + '：' + stats.series[0].score + ' 格）。再记几天才看得出走向。'
+            : '一共 ' + stats.series.length + ' 个点，平均 ' + mean.toFixed(1) + ' 格。';
+      }
+
+      /* ---------- 跟自己比 ---------- */
+      show('compareCard');
+      var cmp = stats.compare;
+      if (!cmp) {
+        document.getElementById('compareLine').textContent =
+          '还不够比。至少要有 4 次状态自评，才分得出"前一段"和"后一段"。';
+        document.getElementById('compareHint').textContent =
+          '现在有 ' + stats.series.length + ' 次。每天填一次复盘，几天后就够了——不着急。';
+      } else {
+        document.getElementById('compareLine').innerHTML =
+          '<b>' + Growth.shortDate(cmp.firstFrom) + '–' + Growth.shortDate(cmp.firstTo) + '</b> 平均 ' +
+          cmp.firstAvg.toFixed(1) + ' 格　→　<b>' +
+          Growth.shortDate(cmp.secondFrom) + '–' + Growth.shortDate(cmp.secondTo) + '</b> 平均 ' +
+          cmp.secondAvg.toFixed(1) + ' 格';
+        document.getElementById('compareHint').textContent =
+          Growth.trendText(cmp) + '（共 ' + cmp.n + ' 次自评，前后各取一半）';
+      }
+    }
+
+    /* ---------- 诊断条 ---------- */
+    var d = [];
+    d.push('存储' + (storageOK ? '可用' : '被禁'));
+    d.push('目标' + (hasGoal ? '已读到' : '未读到'));
+    d.push('记录' + (records ? records.length : 0) + '条');
+    d.push('有内容' + stats.activeDays + '天');
+    d.push('曲线' + chartPoints + '点');
+    d.push('对比' + (stats.compare ? '可用' : '不足'));
+    if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
+    var diagEl = document.getElementById('diag');
+    diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
+    diagEl.style.color = window.__err.length ? '#c0392b' : '#9aa4b2';
+  </script>
+</body>
+</html>

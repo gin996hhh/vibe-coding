@@ -1,0 +1,165 @@
+/* ===========================================================
+   style.css —— 锚点 MVP 全站样式
+   五个页面共用。先做骨架，够用就行，美化留后面。
+   =========================================================== */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 24px 16px 64px;
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #222;
+  background: #f5f6f8;
+}
+
+.wrap {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+h1 { font-size: 24px; margin: 0 0 4px; }
+h2 { font-size: 18px; margin: 28px 0 8px; }
+p  { margin: 8px 0; }
+
+.muted { color: #888; font-size: 14px; }
+
+/* ---------- 顶部导航 ---------- */
+
+.nav {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e3e5e9;
+}
+.nav a {
+  color: #555;
+  text-decoration: none;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.nav a:hover { background: #ebedf1; }
+.nav a.active { background: #2f3b52; color: #fff; }
+
+/* ---------- 卡片 ---------- */
+
+.card {
+  background: #fff;
+  border: 1px solid #e3e5e9;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+/* ---------- 表单元素 ---------- */
+
+input[type="text"], textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  border: 1px solid #d3d7de;
+  border-radius: 8px;
+  background: #fff;
+}
+input[type="text"]:focus, textarea:focus {
+  outline: none;
+  border-color: #2f3b52;
+}
+textarea { min-height: 72px; resize: vertical; }
+
+input.err { border-color: #d9534f; }
+
+button {
+  font-family: inherit;
+  font-size: 15px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #2f3b52;
+  color: #fff;
+  cursor: pointer;
+}
+button:hover { background: #3d4c69; }
+button.ghost {
+  background: #fff;
+  color: #2f3b52;
+  border: 1px solid #d3d7de;
+}
+button.ghost:hover { background: #f0f2f5; }
+
+/* ---------- 量表 1-5 ---------- */
+
+.scale { display: flex; gap: 8px; margin: 8px 0 4px; }
+.scale button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: #fff;
+  color: #444;
+  border: 1px solid #d3d7de;
+}
+.scale button:hover { background: #f0f2f5; }
+.scale button.on {
+  background: #2f3b52;
+  color: #fff;
+  border-color: #2f3b52;
+}
+
+/* ---------- 体检题 ---------- */
+
+.q { font-weight: 600; margin: 20px 0 6px; }
+.picked { font-weight: 400; font-size: 14px; color: #2f6b4f; margin-left: 8px; }
+
+/* ---------- 清单项 ---------- */
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e3e5e9;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+.item.done { background: #f0f2f5; color: #999; text-decoration: line-through; }
+.item input[type="checkbox"] { margin-top: 4px; width: 18px; height: 18px; }
+
+/* ---------- 三环 ---------- */
+
+.ring {
+  border-left: 3px solid #2f3b52;
+  padding: 4px 0 4px 14px;
+  margin: 14px 0;
+}
+.ring .ring-name { font-weight: 600; }
+.ring .ring-line { margin: 4px 0; }
+.ring .ring-adjust { color: #2f6b4f; font-size: 14px; }
+
+/* ---------- 提示条 ---------- */
+
+.tip {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fff8e6;
+  border: 1px solid #f0dfae;
+  font-size: 14px;
+  margin: 12px 0;
+}
+
+/* ---------- 数字面板 ---------- */
+
+.stats { display: flex; gap: 16px; flex-wrap: wrap; }
+.stat { flex: 1 1 120px; }
+.stat .num { font-size: 28px; font-weight: 700; }
+.stat .lab { font-size: 13px; color: #888; }
+
+/* 曲线用手写 SVG（不引第三方库），给个白底 */
+.chart { background: #fff; border-radius: 8px; overflow: hidden; }
+.chart svg { display: block; width: 100%; height: auto; }

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>锚点 · 复盘</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* 兜底：任何一段脚本出错，都写进页面里，不让人对着白屏猜 */
+    window.__err = [];
+    window.onerror = function (msg, src, line) {
+      window.__err.push(String(msg) + '（' + String(src).split('/').pop() + ' 第' + line + '行）');
+      var box = document.getElementById('errBox');
+      if (box) { box.style.display = 'block'; box.textContent = '⚠️ 页面报错：' + window.__err.join(' ｜ '); }
+    };
+  </script>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- 报错框：平时隐藏，一出错就显示 -->
+    <pre id="errBox" style="display:none;color:#c0392b;white-space:pre-wrap;font-size:13px"></pre>
+
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="today.html">今日</a>
+      <a href="reflect.html" class="active">复盘</a>
+      <a href="growth.html">成长</a>
+    </nav>
+
+    <h1>复盘</h1>
+    <p class="muted">这里不记"今天发生了啥"。这里只对一件事：<b>你今天做的方式，对不对得上你给自己定的方法。</b></p>
+
+    <!-- 没有目标 -->
+    <div class="card" id="noGoalCard" style="display:none">
+      <p>还没有目标，谈不上复盘。先去首页写一句你想做成的事。</p>
+      <a href="index.html"><button>去首页</button></a>
+    </div>
+
+    <!-- 复盘卡 -->
+    <div class="card" id="reflectCard" style="display:none">
+      <h2 style="margin-top:0">今天的复盘卡</h2>
+      <p class="muted">四个数，一分钟。不追求准确——追求的是它明天能和今天比。</p>
+
+      <!-- Q1 -->
+      <p class="q">1. 今天的状态几格？<span class="picked" id="pickedState"></span></p>
+      <div class="scale" id="scaleState"></div>
+      <p class="muted" id="hintState" style="font-size:12px;margin:2px 0 0"></p>
+
+      <!-- Q2 -->
+      <p class="q">2. 早晚两项锚点，今天做了几项？<span class="picked" id="pickedRitual"></span></p>
+      <div class="scale" id="scaleRitual"></div>
+      <p class="muted" id="hintRitual" style="font-size:12px;margin:2px 0 0"></p>
+
+      <!-- Q3 -->
+      <p class="q" style="margin-bottom:6px">3. 今天你用的方法是什么？</p>
+      <p class="muted" style="font-size:12px;margin:0 0 6px">
+        自己找的、自己判断——产品不给你标准答案。写一句你今天实际怎么做的那件事。
+      </p>
+      <input type="text" id="methodText" placeholder="例：每天 3 分钟跟读一句，不看字幕"
+             style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d6dbe3;border-radius:8px;font-size:14px;font-family:inherit">
+      <p class="q" style="margin:10px 0 4px">这个方法，今天对上了吗？<span class="picked" id="pickedMethod"></span></p>
+      <div class="scale" id="scaleMethod"></div>
+      <p class="muted" id="hintMethod" style="font-size:12px;margin:2px 0 0"></p>
+
+      <!-- Q4 -->
+      <p class="q" style="margin-bottom:6px">4. 今天哪个动作是"硬启动"完成的？</p>
+      <p class="muted" style="font-size:12px;margin:0 0 6px">
+        指的是：当时并不想动，但还是动了。填不填都行——填了，你明天就知道自己能怎么启动。
+      </p>
+      <input type="text" id="hardStartText" placeholder="例：不想动但还是出门走了 10 分钟"
+             style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d6dbe3;border-radius:8px;font-size:14px;font-family:inherit">
+
+      <p style="margin:18px 0 0"><button id="saveBtn">保存今天的复盘</button></p>
+      <p class="tip" id="saveTip" style="display:none">第 1 问和第 3 问的自评要选一下，那才是能拿来比较的读数。</p>
+      <p class="muted" id="savedMsg" style="display:none;margin-bottom:0"></p>
+    </div>
+
+    <!-- 诊断条：验证跑通后可删 -->
+    <p id="diag" style="margin-top:24px;font-size:12px;color:#9aa4b2;text-align:center;line-height:1.8"></p>
+
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/reflect.js"></script>
+  <script>
+    var goal = Store.getGoal();
+    var hasGoal = !!(goal && goal.content);
+    var storageOK = Store.isAvailable();
+    var date = Store.todayStr();
+    var rec = Store.getRecord(date);          // 今天的记录，没有则 null
+    var picked = { state: null, ritual: null, method: null };
+
+    /* ---------- 通用量表渲染 ---------- */
+    function renderScale(boxId, key, labels, pickedLabelId, hintId) {
+      var box = document.getElementById(boxId);
+      var hint = document.getElementById(hintId);
+      if (hint) hint.textContent = '1 = ' + labels[0] + '　→　5 = ' + labels[4];
+      for (var i = 0; i < 5; i++) {
+        (function (val) {
+          var b = document.createElement('button');
+          b.textContent = String(val);
+          b.title = labels[val - 1];
+          if (picked[key] === val) b.className = 'on';
+          b.addEventListener('click', function () {
+            picked[key] = val;
+            var kids = box.getElementsByTagName('button');
+            for (var j = 0; j < kids.length; j++) kids[j].className = '';
+            b.className = 'on';
+            document.getElementById(pickedLabelId).textContent = labels[val - 1];
+          });
+          box.appendChild(b);
+        })(i + 1);
+      }
+    }
+
+    /* 仪式完成数是 0 / 1 / 2 三档，不是 1–5，单独渲染 */
+    function renderRitual(defaultVal) {
+      var box = document.getElementById('scaleRitual');
+      var pickedLab = document.getElementById('pickedRitual');
+      var head = document.getElementById('hintRitual');
+      if (head) head.textContent = '0 = 一项都没做　→　2 = 早晚都做了';
+      [0, 1, 2].forEach(function (val) {
+        var b = document.createElement('button');
+        b.textContent = String(val);
+        if (defaultVal === val) { b.className = 'on'; picked.ritual = val; pickedLab.textContent = val + ' 项'; }
+        b.addEventListener('click', function () {
+          picked.ritual = val;
+          var kids = box.getElementsByTagName('button');
+          for (var j = 0; j < kids.length; j++) kids[j].className = '';
+          b.className = 'on';
+          pickedLab.textContent = val + ' 项';
+        });
+        box.appendChild(b);
+      });
+      if (defaultVal === null || defaultVal === undefined) {
+        pickedLab.textContent = '';
+      } else {
+        pickedLab.textContent = (defaultVal + ' 项' + (rec && rec.ritual_count === null ? '（按今天打卡自动带出，可改）' : ''));
+      }
+    }
+
+    /* ---------- 回显：今天已经记过，就把上次的填回来 ---------- */
+    function fillFromRecord() {
+      if (!rec) return false;
+      var any = false;
+
+      if (rec.state_score) {
+        picked.state = rec.state_score;
+        document.getElementById('pickedState').textContent = Reflect.STATE_LABELS[rec.state_score - 1];
+        any = true;
+      }
+      if (rec.method_score) {
+        picked.method = rec.method_score;
+        document.getElementById('pickedMethod').textContent = Reflect.METHOD_LABELS[rec.method_score - 1];
+        any = true;
+      }
+      if (rec.method_text) { document.getElementById('methodText').value = rec.method_text; any = true; }
+      if (rec.hard_start_text) { document.getElementById('hardStartText').value = rec.hard_start_text; any = true; }
+      return any;
+    }
+
+    /* ---------- 主流程 ---------- */
+    if (!hasGoal) {
+      document.getElementById('noGoalCard').style.display = 'block';
+    } else {
+      document.getElementById('reflectCard').style.display = 'block';
+
+      var already = fillFromRecord();
+
+      var autoRitual = Reflect.autoRitualCount(rec);
+      renderScale('scaleState',  'state',  Reflect.STATE_LABELS,  'pickedState',  'hintState');
+      renderRitual(autoRitual);
+      renderScale('scaleMethod', 'method', Reflect.METHOD_LABELS, 'pickedMethod', 'hintMethod');
+
+      /* 选中已存过的档位：重新点一次同号按钮，让它变高亮 */
+      function activate(boxId, key, val, labId, labels) {
+        if (!val) return;
+        var kids = document.getElementById(boxId).getElementsByTagName('button');
+        for (var j = 0; j < kids.length; j++) {
+          kids[j].className = (Number(kids[j].textContent) === val) ? 'on' : '';
+        }
+        document.getElementById(labId).textContent = labels[val - 1];
+      }
+      activate('scaleState',  'state',  picked.state,  'pickedState',  Reflect.STATE_LABELS);
+      activate('scaleMethod', 'method', picked.method, 'pickedMethod', Reflect.METHOD_LABELS);
+
+      if (already) {
+        var msg = document.getElementById('savedMsg');
+        msg.style.display = 'block';
+        msg.textContent = '今天已经记过一次了（' + date + '）。改完再点下面的按钮会覆盖，不会新增一条。';
+        document.getElementById('saveBtn').textContent = '更新今天的复盘';
+      }
+
+      /* ---------- 保存 ---------- */
+      document.getElementById('saveBtn').addEventListener('click', function () {
+        var tip = document.getElementById('saveTip');
+        if (!picked.state || !picked.method) {
+          tip.style.display = 'block';
+          return;
+        }
+        tip.style.display = 'none';
+
+        var patch = {
+          state_score: picked.state,
+          ritual_count: picked.ritual === null ? null : picked.ritual,
+          method_text: document.getElementById('methodText').value.trim(),
+          method_score: picked.method,
+          hard_start_text: document.getElementById('hardStartText').value.trim()
+        };
+        rec = Store.upsertRecord(date, patch);
+
+        var msg = document.getElementById('savedMsg');
+        msg.style.display = 'block';
+        msg.textContent = '✅ 已记录（' + date + '）。明天这一格就有对照了。';
+        document.getElementById('saveBtn').textContent = '更新今天的复盘';
+      });
+    }
+
+    /* ---------- 诊断条 ---------- */
+    var d = [];
+    d.push('存储' + (storageOK ? '可用' : '被禁'));
+    d.push('目标' + (hasGoal ? '已读到' : '未读到'));
+    d.push(rec ? ('今日记录已有' + (rec.state_score ? '（含复盘）' : '')) : '今日无记录');
+    d.push('仪式可带出' + (Reflect.autoRitualCount(rec) === null ? '否' : '是'));
+    if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
+    var diagEl = document.getElementById('diag');
+    diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
+    diagEl.style.color = window.__err.length ? '#c0392b' : '#9aa4b2';
+  </script>
+</body>
+</html>

@@ -3,10 +3,106 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>锚点 · Vibe Coding</title>
+  <title>锚点 · 首页</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <h1>锚点</h1>
-  <p>每日仪式 · 无聊的底线 · 正向大他者 —— 占位页，Day 7 起在这里长出真正的 MVP。</p>
+  <div class="wrap">
+
+    <!-- 顶部导航：五个页面共用同一份 -->
+    <nav class="nav">
+      <a href="index.html" class="active">首页</a>
+      <a href="today.html">今日</a>
+      <a href="reflect.html">复盘</a>
+      <a href="growth.html">成长</a>
+    </nav>
+
+    <h1>锚点</h1>
+    <p class="muted">凡有结果必有路径。</p>
+
+    <!-- 已有目标时显示；没有时隐藏 -->
+    <div class="card" id="goalCard" style="display:none">
+      <h2 style="margin-top:0">当前目标</h2>
+      <p id="goalText" style="font-size:18px;font-weight:600"></p>
+      <p class="muted" id="goalDate"></p>
+      <p>
+        <a href="decompose.html"><button class="ghost">看三环拆解</button></a>
+        <button class="ghost" id="resetBtn">换一个目标</button>
+      </p>
+    </div>
+
+    <!-- 输入区 -->
+    <div class="card" id="inputCard">
+      <h2 style="margin-top:0">写一件你想做成的事</h2>
+      <p class="muted">写你一直想做、但一直没做起来的那件事。不用长，一句话。</p>
+      <p class="muted">
+        唯一的门槛是：<b>说清"做成什么样算成"</b>。
+        写完点「拆解」，系统把它拆成三环——<b>状态、频率、方法</b>，你只看哪个环现在是空的。
+      </p>
+      <p class="muted">例：半年内英文口语能上台 ｜ 每周跑三次、连着跑三个月</p>
+      <input type="text" id="goalInput" placeholder="例：半年内英文口语能上台">
+      <p class="tip" id="errTip" style="display:none">先写一句你想做的事。</p>
+      <p style="margin-bottom:0">
+        <button id="goBtn">拆解</button>
+      </p>
+    </div>
+
+  </div>
+
+  <script src="js/store.js"></script>
+  <script>
+    /* ---------- F1 首页：输入目标 → 拆解 ---------- */
+
+    var goalInput = document.getElementById('goalInput');
+    var errTip    = document.getElementById('errTip');
+    var inputCard = document.getElementById('inputCard');
+    var goalCard  = document.getElementById('goalCard');
+
+    /** 有目标时，把输入区收起来，显示当前目标 */
+    function render() {
+      var goal = Store.getGoal();
+      if (goal && goal.content) {
+        inputCard.style.display = 'none';
+        goalCard.style.display = 'block';
+        document.getElementById('goalText').textContent = goal.content;
+        document.getElementById('goalDate').textContent = '建立于 ' + goal.created_at;
+      } else {
+        inputCard.style.display = 'block';
+        goalCard.style.display = 'none';
+      }
+    }
+
+    function onDecompose() {
+      var text = goalInput.value.trim();
+      if (!text) {
+        // PRD 第七章：没填就点 → 红框 + 提示
+        goalInput.className = 'err';
+        errTip.style.display = 'block';
+        return;
+      }
+      goalInput.className = '';
+      errTip.style.display = 'none';
+
+      // 只存目标本身；三环留到 decompose.html 里用规则生成
+      var goal = Store.makeGoal(text, null);
+      Store.saveGoal(goal);
+
+      location.href = 'decompose.html';
+    }
+
+    document.getElementById('goBtn').addEventListener('click', onDecompose);
+    goalInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') onDecompose();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', function () {
+      if (!confirm('换一个目标会清掉当前目标的拆解，每日记录不受影响。继续？')) return;
+      Store.clearGoal();
+      goalInput.value = '';
+      render();
+    });
+
+    render();
+  </script>
 </body>
 </html>
