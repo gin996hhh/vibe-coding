@@ -380,11 +380,25 @@
 
     function labelForDate(dateStr) {
       var t = Store.todayStr();
-      var p = String(dateStr).split('-');
-      var md = Number(p[1]) + '月' + Number(p[2]) + '日';
+      var md = mdOf(dateStr);
       if (dateStr === t) return '今天 · ' + md;
       if (daysBetween(dateStr, t) === 1) return '昨天 · ' + md;
       return md;
+    }
+
+    /** '2026-09-20' → '9月20日' */
+    function mdOf(dateStr) {
+      var p = String(dateStr).split('-');
+      return Number(p[1]) + '月' + Number(p[2]) + '日';
+    }
+
+    /** 今天之前、最近一次"有内容"的日子（没有则 null）——只用来回答"上次写到哪" */
+    function lastRecordedDate(today) {
+      var last = null;
+      allRecords().filter(hasContent).forEach(function (r) {
+        if (r.date < today && (!last || r.date > last)) last = r.date;
+      });
+      return last;
     }
 
     /* ---------- 主流程 ---------- */
@@ -428,15 +442,22 @@
       renderState(null);
       document.getElementById('content').style.display = 'block';
 
+      /* 页头徽标：中断过就不做天数结算，只说"上次写到哪"（不给判决） */
       var badge = document.getElementById('dayBadge');
       var t = Store.todayStr();
       var d = new Date();
       var wk = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
-      badge.textContent = (d.getMonth() + 1) + '月' + d.getDate() + '日 · 周' + wk;
-      if (goal.created_at) {
-        var nth = daysBetween(goal.created_at, t) + 1;
-        badge.textContent += ' · 第 ' + nth + ' 天';
+      var headTxt = (d.getMonth() + 1) + '月' + d.getDate() + '日 · 周' + wk;
+
+      var lastBefore = lastRecordedDate(t);
+      var gap = lastBefore ? daysBetween(lastBefore, t) : null;
+
+      if (gap !== null && gap >= 2) {
+        headTxt += ' · 上次写到 ' + mdOf(lastBefore);
+      } else if (goal.created_at) {
+        headTxt += ' · 第 ' + (daysBetween(goal.created_at, t) + 1) + ' 天';
       }
+      badge.textContent = headTxt;
       badge.style.display = 'inline-block';
 
       renderRecent();
