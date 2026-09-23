@@ -19,11 +19,12 @@
   <div class="wrap">
 
     <!-- 报错框：平时隐藏，一出错就显示 -->
-    <pre id="errBox" style="display:none;color:#c0392b;white-space:pre-wrap;font-size:13px"></pre>
+    <pre id="errBox" style="display:none;color:var(--danger);white-space:pre-wrap;font-size:13px"></pre>
 
     <nav class="nav">
       <a href="index.html">首页</a>
       <a href="today.html">今日</a>
+      <a href="records.html">记录台</a>
       <a href="reflect.html" class="active">复盘</a>
       <a href="growth.html">成长</a>
     </nav>
@@ -67,8 +68,7 @@
       <p class="muted" style="font-size:12px;margin:0 0 6px">
         指的是：当时并不想动，但还是动了。填不填都行——填了，你明天就知道自己能怎么启动。
       </p>
-      <input type="text" id="hardStartText" placeholder="例：不想动但还是出门走了 10 分钟"
-             style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d6dbe3;border-radius:8px;font-size:14px;font-family:inherit">
+      <input type="text" id="hardStartText" placeholder="例：不想动但还是出门走了 10 分钟">
 
       <p style="margin:18px 0 0"><button id="saveBtn">保存今天的复盘</button></p>
       <p class="tip" id="saveTip" style="display:none">第 1 问和第 3 问的自评要选一下，那才是能拿来比较的读数。</p>
@@ -76,7 +76,7 @@
     </div>
 
     <!-- 诊断条：验证跑通后可删 -->
-    <p id="diag" style="margin-top:24px;font-size:12px;color:#9aa4b2;text-align:center;line-height:1.8"></p>
+    <p id="diag" style="margin-top:24px;font-size:12px;color:var(--ink-3);text-align:center;line-height:1.8"></p>
 
   </div>
 

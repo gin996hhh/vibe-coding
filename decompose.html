@@ -60,7 +60,7 @@
     </div>
 
     <!-- 诊断条：页面上直接显示"数据到底读进来没有"。验证跑通后可删。 -->
-    <p id="diag" style="margin-top:24px;font-size:12px;color:#9aa4b2;text-align:center;line-height:1.8"></p>
+    <p id="diag" style="margin-top:24px;font-size:12px;color:var(--ink-3);text-align:center;line-height:1.8"></p>
 
   </div>
 
@@ -148,7 +148,7 @@
 
     var diagEl = document.getElementById('diag');
     diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
-    diagEl.style.color = window.__err.length ? '#c0392b' : '#9aa4b2';
+    diagEl.style.color = window.__err.length ? 'var(--danger)' : 'var(--ink-3)';
     if (window.__err.length) document.getElementById('errBox').style.display = 'none';
   </script>
 </body>
