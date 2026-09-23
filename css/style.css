@@ -1,154 +1,405 @@
 /* ===========================================================
-   style.css —— 锚点 MVP 全站样式
-   五个页面共用。先做骨架，够用就行，美化留后面。
+   style.css —— 锚点 全站样式（Day 8 改版：蓝调时刻）
+   所有页面共用。改版要点：
+   1. 配色统一为「蓝调时刻」：深靛蓝打底，只给"已完成"留一抹余光橙
+   2. 加了响应式：≥900px 两栏，窄屏自动变单栏，不横向溢出
+   3. 加了四种页面状态需要的样式：加载中 / 空 / 错误 / 正常
    =========================================================== */
+
+/* ---------- 蓝调时刻：全部颜色只在这里定义，页面里不许写死颜色 ---------- */
+/* 蓝调时刻是日落后那十几分钟：天顶还是深蓝，地平线剩一线暖橙。
+   所以整站的彩色只有一处——那抹橙只给「已经做完」，别的地方一律蓝灰。 */
+
+:root {
+  --night:     #0F1828;  /* 页面底：夜 */
+  --night-2:   #16233A;  /* 输入框、凹陷块 */
+  --card:      #1B2A45;  /* 卡片 */
+  --card-hi:   #223252;  /* 卡片里再抬一层（锚点块、选中导航） */
+  --line:      #2A3A5A;  /* 边框、分隔线 */
+  --ink:       #E8EFFA;  /* 主文字 */
+  --ink-2:     #A8B8D4;  /* 次文字 */
+  --ink-3:     #7587A6;  /* 三级文字、刻度、诊断条 */
+  --sky:       #6E9BD6;  /* 天光蓝：链接、选中、进行中 */
+  --sky-deep:  #3E6BB0;  /* 主按钮 */
+  --sky-hi:    #4A7CC7;  /* 主按钮悬停 */
+  --ember:     #F0A65C;  /* 余光橙：只给「已完成」，全站唯一暖色 */
+  --danger:    #FF8B7E;  /* 报错 */
+
+  --r:         12px;     /* 常规圆角 */
+  --r-lg:      16px;     /* 大块圆角 */
+}
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  padding: 24px 16px 64px;
+  padding: 24px 20px 80px;
   font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
   font-size: 16px;
   line-height: 1.6;
-  color: #222;
-  background: #f5f6f8;
+  color: var(--ink);
+  /* 一点点从深蓝到夜色的过渡，像抬头看天 */
+  background: var(--night);
+  background-image: linear-gradient(180deg, #16233A 0%, var(--night) 420px);
+  background-repeat: no-repeat;
+  background-color: var(--night);
+  -webkit-font-smoothing: antialiased;
 }
 
-.wrap {
-  max-width: 640px;
-  margin: 0 auto;
-}
+/* 默认窄栏（首页 / 复盘 / 三环 / 成长 用）；主视图和记录台用 .wide 拉宽成两栏 */
+.wrap { max-width: 720px; margin: 0 auto; }
+.wrap.wide { max-width: 1080px; }
 
-h1 { font-size: 24px; margin: 0 0 4px; }
-h2 { font-size: 18px; margin: 28px 0 8px; }
+h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: .5px; }
+h2 { font-size: 17px; margin: 0 0 8px; }
 p  { margin: 8px 0; }
 
-.muted { color: #888; font-size: 14px; }
+.muted { color: var(--ink-2); font-size: 14px; }
+/* 长串英文/数字在窄屏不许把容器撑破 */
+.muted, .anchor-txt, .rec-line { overflow-wrap: anywhere; }
+
+a { color: var(--sky); }
+
+/* ---------- 页头（标题 + 右侧徽标） ---------- */
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 4px 0 18px;
+}
+.page-head .head-side { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.badge {
+  font-size: 12px;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.badge.on { color: var(--ember); border-color: rgba(240, 166, 92, .45); }
 
 /* ---------- 顶部导航 ---------- */
 
 .nav {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e3e5e9;
+  gap: 6px;
+  flex-wrap: wrap;            /* 宽度不够就换行，不隐藏、不做汉堡菜单 */
+  margin-bottom: 22px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
 }
 .nav a {
-  color: #555;
+  color: var(--ink-2);
   text-decoration: none;
   font-size: 14px;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
 }
-.nav a:hover { background: #ebedf1; }
-.nav a.active { background: #2f3b52; color: #fff; }
+.nav a:hover { background: var(--card); color: var(--ink); }
+.nav a.active { background: rgba(110, 155, 214, .16); color: #CFE0F5; }
+
+/* ---------- 布局：≥900px 两栏 ---------- */
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);   /* minmax(0,1fr) 是防溢出的关键 */
+  gap: 18px;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; }
+}
+.col { min-width: 0; }
+.col > *:last-child { margin-bottom: 0; }
 
 /* ---------- 卡片 ---------- */
 
 .card {
-  background: #fff;
-  border: 1px solid #e3e5e9;
-  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 18px;
   margin-bottom: 16px;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.card-head h2 { margin: 0; }
+.card-head .more { font-size: 13px; text-decoration: none; white-space: nowrap; }
+.card-head .more:hover { text-decoration: underline; }
+
+.count-chip {
+  font-size: 13px;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+.count-chip.full { color: var(--ember); border-color: rgba(240, 166, 92, .45); }
+
+/* ---------- 锚点块（主视图的核心动作，整块可点） ---------- */
+
+.anchor {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card-hi);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s;
+}
+.anchor + .anchor { margin-top: 11px; }
+.anchor:hover { border-color: #35496F; }
+
+/* 真 checkbox 藏起来但保留：键盘 Tab 还能选中它，读屏也认 */
+.anchor-cb {
+  position: absolute;
+  width: 1px; height: 1px;
+  opacity: 0;
+  margin: 0;
+}
+.anchor-cb:focus-visible + .anchor-idx { outline: 2px solid var(--sky); outline-offset: 2px; }
+
+.anchor-idx {
+  flex: 0 0 30px;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  color: var(--ink-2);
+  transition: background .15s, color .15s, border-color .15s;
+}
+/* label 里只能用 span（合法嵌套），所以要手动把它们变回块级 */
+.anchor-body, .anchor-txt, .anchor-why { display: block; }
+.anchor-body { flex: 1; min-width: 0; }
+.anchor-txt { font-size: 16px; color: var(--ink); line-height: 1.5; }
+.anchor-why { margin-top: 7px; font-size: 13px; color: var(--ink-3); line-height: 1.55; }
+.anchor-why b { color: var(--sky); font-weight: 600; }
+
+/* 右侧状态点：未做是空圈，做完填橙——全站唯一暖色就出现在这里 */
+.anchor-dot {
+  flex: 0 0 12px;
+  width: 12px; height: 12px;
+  margin-top: 9px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  transition: background .15s, border-color .15s;
+}
+
+/* 已完成 */
+.anchor.done { border-color: rgba(240, 166, 92, .42); background: rgba(240, 166, 92, .06); }
+.anchor.done .anchor-idx { background: var(--ember); border-color: var(--ember); color: #23160A; }
+.anchor.done .anchor-txt { color: var(--ink-2); }
+.anchor.done .anchor-dot { background: var(--ember); border-color: var(--ember); }
+
+/* ---------- 最近记录 / 记录台 的每日一条 ---------- */
+
+.reclist { display: flex; flex-direction: column; gap: 10px; }
+
+.rec {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card-hi);
+}
+.rec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rec-date { font-size: 14px; font-weight: 600; color: var(--ink); }
+.rec-dots { display: flex; gap: 5px; align-items: center; }
+.rec-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+}
+.rec-dot.on { background: var(--ember); border-color: var(--ember); }
+.rec-line { margin-top: 7px; font-size: 13px; color: var(--ink-3); line-height: 1.55; }
+.rec-tag {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 6px;
+  margin-right: 6px;
+}
+
+/* 记录台：一块里的一条锚点 */
+.rec-anchor {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.rec-anchor .k { flex: 0 0 auto; color: var(--ink-3); }
+.rec-anchor .v { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rec-anchor .m { flex: 0 0 auto; }
+.rec-anchor .m.ok { color: var(--ember); }
+.rec-anchor .m.no { color: var(--ink-3); }
+.rec-anchor.done .v { color: var(--ink-3); }
+
+/* 记录台：一天一块，块头左侧一条竖线，扫一眼就知道这是新的一天 */
+.rec-day { border-left: 2px solid var(--line); padding-left: 13px; }
+.rec-day.today { border-left-color: var(--sky); }
+
+/* ---------- 四种页面状态：加载中 / 空 / 错误 ---------- */
+
+.state {
+  border: 1px dashed var(--line);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  padding: 26px 22px;
+  text-align: center;
+  color: var(--ink-2);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.state-title { color: var(--ink); font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.state p { margin: 6px 0; }
+.state .state-act { margin-top: 14px; }
+.state.error { border-color: rgba(255, 139, 126, .45); }
+.state.error .state-title { color: var(--danger); }
+
+/* 加载中的骨架条：灰条来回扫，让人知道"在等"，不是"坏了" */
+.skel {
+  height: 13px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #223252 25%, #2C3E63 50%, #223252 75%);
+  background-size: 240% 100%;
+  animation: skel 1.3s ease-in-out infinite;
+  margin: 10px 0;
+}
+.skel.w60 { width: 60%; }
+.skel.w85 { width: 85%; }
+.skel.w40 { width: 40%; }
+@keyframes skel {
+  0%   { background-position: 120% 0; }
+  100% { background-position: -20% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
 }
 
 /* ---------- 表单元素 ---------- */
 
 input[type="text"], textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 13px;
   font-size: 15px;
   font-family: inherit;
-  border: 1px solid #d3d7de;
-  border-radius: 8px;
-  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--night-2);
 }
+input[type="text"]::placeholder, textarea::placeholder { color: var(--ink-3); }
 input[type="text"]:focus, textarea:focus {
   outline: none;
-  border-color: #2f3b52;
+  border-color: var(--sky);
 }
 textarea { min-height: 72px; resize: vertical; }
 
-input.err { border-color: #d9534f; }
+input.err { border-color: var(--danger); }
 
 button {
   font-family: inherit;
   font-size: 15px;
   padding: 10px 18px;
   border: none;
-  border-radius: 8px;
-  background: #2f3b52;
+  border-radius: 10px;
+  background: var(--sky-deep);
   color: #fff;
   cursor: pointer;
+  transition: background .15s;
 }
-button:hover { background: #3d4c69; }
+button:hover { background: var(--sky-hi); }
 button.ghost {
-  background: #fff;
-  color: #2f3b52;
-  border: 1px solid #d3d7de;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
 }
-button.ghost:hover { background: #f0f2f5; }
+button.ghost:hover { background: var(--card-hi); }
 
-/* ---------- 量表 1-5 ---------- */
+/* ---------- 量表（1–5 格 / 0–2 项） ---------- */
 
-.scale { display: flex; gap: 8px; margin: 8px 0 4px; }
+.scale { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; }
 .scale button {
   width: 44px;
   height: 44px;
   padding: 0;
-  background: #fff;
-  color: #444;
-  border: 1px solid #d3d7de;
+  background: var(--night-2);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
 }
-.scale button:hover { background: #f0f2f5; }
+.scale button:hover { background: var(--card-hi); color: var(--ink); }
 .scale button.on {
-  background: #2f3b52;
-  color: #fff;
-  border-color: #2f3b52;
+  background: var(--sky);
+  color: #0F1828;
+  border-color: var(--sky);
+  font-weight: 700;
 }
 
 /* ---------- 体检题 ---------- */
 
-.q { font-weight: 600; margin: 20px 0 6px; }
-.picked { font-weight: 400; font-size: 14px; color: #2f6b4f; margin-left: 8px; }
+.q { font-weight: 600; margin: 20px 0 6px; color: var(--ink); }
+.picked { font-weight: 400; font-size: 14px; color: var(--sky); margin-left: 8px; }
 
-/* ---------- 清单项 ---------- */
+/* ---------- 清单项（锚点用整块可点，这里是旧页面还在用的行样式） ---------- */
 
 .item {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 12px;
-  border: 1px solid #e3e5e9;
-  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
   margin-bottom: 8px;
-  background: #fff;
+  background: var(--card-hi);
 }
-.item.done { background: #f0f2f5; color: #999; text-decoration: line-through; }
-.item input[type="checkbox"] { margin-top: 4px; width: 18px; height: 18px; }
+.item.done { background: rgba(240, 166, 92, .06); color: var(--ink-2); text-decoration: line-through; }
+.item input[type="checkbox"] { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--ember); }
 
 /* ---------- 三环 ---------- */
 
 .ring {
-  border-left: 3px solid #2f3b52;
+  border-left: 3px solid var(--sky);
   padding: 4px 0 4px 14px;
   margin: 14px 0;
 }
-.ring .ring-name { font-weight: 600; }
-.ring .ring-line { margin: 4px 0; }
-.ring .ring-adjust { color: #2f6b4f; font-size: 14px; }
+.ring .ring-name { font-weight: 600; color: var(--ink); }
+.ring .ring-line { margin: 4px 0; color: var(--ink-2); }
+.ring .ring-adjust { color: var(--ink-3); font-size: 14px; }
 
 /* ---------- 提示条 ---------- */
 
 .tip {
   padding: 10px 14px;
-  border-radius: 8px;
-  background: #fff8e6;
-  border: 1px solid #f0dfae;
+  border-radius: 10px;
+  background: rgba(240, 166, 92, .1);
+  border: 1px solid rgba(240, 166, 92, .35);
+  color: #F3C58C;
   font-size: 14px;
   margin: 12px 0;
 }
@@ -156,10 +407,36 @@ button.ghost:hover { background: #f0f2f5; }
 /* ---------- 数字面板 ---------- */
 
 .stats { display: flex; gap: 16px; flex-wrap: wrap; }
-.stat { flex: 1 1 120px; }
-.stat .num { font-size: 28px; font-weight: 700; }
-.stat .lab { font-size: 13px; color: #888; }
+.stat { flex: 1 1 120px; min-width: 0; }
+.stat .num { font-size: 28px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+.stat .lab { font-size: 13px; color: var(--ink-3); }
 
-/* 曲线用手写 SVG（不引第三方库），给个白底 */
-.chart { background: #fff; border-radius: 8px; overflow: hidden; }
+/* 曲线用手写 SVG（不引第三方库） */
+.chart { background: var(--card-hi); border-radius: 10px; overflow: hidden; }
 .chart svg { display: block; width: 100%; height: auto; }
+
+/* ---------- 代码 / 报错框 ---------- */
+
+code {
+  background: var(--card-hi);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 13px;
+  color: #CFE0F5;
+}
+
+#errBox {
+  display: none;
+  color: var(--danger);
+  white-space: pre-wrap;
+  font-size: 13px;
+  background: rgba(255, 139, 126, .08);
+  border: 1px solid rgba(255, 139, 126, .35);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 16px;
+}
+
+/* 诊断条：验证跑通后可删 */
+#diag { margin-top: 26px; font-size: 12px; color: var(--ink-3); text-align: center; line-height: 1.8; }

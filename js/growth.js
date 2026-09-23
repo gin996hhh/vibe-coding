@@ -179,21 +179,21 @@
     for (var v = 1; v <= 5; v++) {
       var gy = yAt(v);
       s.push('<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy +
-        '" stroke="#e3e5e9" stroke-width="1"/>');
+        '" stroke="#2A3A5A" stroke-width="1"/>');
       s.push('<text x="' + (padL - 8) + '" y="' + (gy + 4) +
-        '" font-size="11" fill="#9aa4b2" text-anchor="end">' + v + '</text>');
+        '" font-size="11" fill="#7587A6" text-anchor="end">' + v + '</text>');
     }
 
     // 折线
     if (n >= 2) {
       var pts = series.map(function (p, i) { return xAt(i) + ',' + yAt(p.score); }).join(' ');
-      s.push('<polyline points="' + pts + '" fill="none" stroke="#2f3b52" stroke-width="2" ' +
+      s.push('<polyline points="' + pts + '" fill="none" stroke="#6E9BD6" stroke-width="2" ' +
         'stroke-linejoin="round" stroke-linecap="round"/>');
     }
 
     // 数据点
     series.forEach(function (p, i) {
-      s.push('<circle cx="' + xAt(i) + '" cy="' + yAt(p.score) + '" r="3.5" fill="#2f3b52"/>');
+      s.push('<circle cx="' + xAt(i) + '" cy="' + yAt(p.score) + '" r="3.5" fill="#F0A65C"/>');
     });
 
     // 横轴日期：只标首 / 中 / 尾三个，免得挤成一团
@@ -203,7 +203,7 @@
       if (done[i]) return;
       done[i] = true;
       var anchor = i === 0 ? 'start' : (i === n - 1 ? 'end' : 'middle');
-      s.push('<text x="' + xAt(i) + '" y="' + (H - 8) + '" font-size="11" fill="#9aa4b2" ' +
+      s.push('<text x="' + xAt(i) + '" y="' + (H - 8) + '" font-size="11" fill="#7587A6" ' +
         'text-anchor="' + anchor + '">' + shortDate(series[i].date) + '</text>');
     });
 

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>锚点 · 记录台</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* 兜底：任何一段脚本出错，都写进页面里，不让人对着白屏猜 */
+    window.__err = [];
+    window.onerror = function (msg, src, line) {
+      window.__err.push(String(msg) + '（' + String(src).split('/').pop() + ' 第' + line + '行）');
+      var box = document.getElementById('errBox');
+      if (box) { box.style.display = 'block'; box.textContent = '⚠️ 页面报错：' + window.__err.join(' ｜ '); }
+    };
+  </script>
+</head>
+<body>
+  <div class="wrap wide">
+
+    <pre id="errBox"></pre>
+
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="today.html">今日</a>
+      <a href="records.html" class="active">记录台</a>
+      <a href="reflect.html">复盘</a>
+      <a href="growth.html">成长</a>
+    </nav>
+
+    <header class="page-head">
+      <div>
+        <h1>记录台</h1>
+        <p class="muted" style="margin:4px 0 0">
+          你做过什么，一条条摆在这里。唯一的参照物是你自己的过去。
+        </p>
+      </div>
+      <div class="head-side">
+        <span class="badge" id="goalBadge" style="display:none"></span>
+        <span class="badge" id="demoBadge" style="display:none"></span>
+      </div>
+    </header>
+
+    <div id="stateLayer"></div>
+
+    <div id="content" style="display:none">
+      <div class="layout">
+
+        <aside class="col">
+          <div class="card">
+            <h2>总览</h2>
+            <div class="stats">
+              <div class="stat">
+                <div class="num" id="numStreak">0</div>
+                <div class="lab">连续天数（今天没做不算断）</div>
+              </div>
+              <div class="stat">
+                <div class="num" id="numAnchors">0</div>
+                <div class="lab">累计完成锚点（项）</div>
+              </div>
+              <div class="stat">
+                <div class="num" id="numDays">0</div>
+                <div class="lab">有记录的天数</div>
+              </div>
+            </div>
+            <p class="muted" id="ratioLine" style="margin-bottom:0"></p>
+          </div>
+
+          <div class="card">
+            <p class="muted" style="margin-top:0">接着做今天的那一项。</p>
+            <a href="today.html"><button>去今日</button></a>
+          </div>
+        </aside>
+
+        <div class="col">
+          <div class="card">
+            <div class="card-head">
+              <h2>每天</h2>
+              <span class="count-chip" id="dayChip"></span>
+            </div>
+            <p class="muted" style="margin-top:0">
+              最近的在最上面。勾没勾、复盘写了没，都摆在明面上。
+            </p>
+            <div class="reclist" id="dayList"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <p id="diag"></p>
+
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/growth.js"></script>
+  <script src="js/records.js"></script>
+  <script src="js/mock.js"></script>
+  <script>
+  (function () {
+    /* =========================================================
+       记录台：把散记录排成「一天一块」
+       左栏三个数（连续天数 / 累计锚点 / 有记录天数），右栏是每天的明细。
+       连续天数复用 growth.js 里的算法，不另写一套——两页数字必须一致。
+       ========================================================= */
+
+    var forced = null;
+    try { forced = new URLSearchParams(location.search).get('state'); } catch (e) { forced = null; }
+
+    var today = Store.todayStr();
+    var storageOK = true;
+    var hasGoal = false;
+    var dayCount = 0;
+
+    /* ---------- 示例模式（Day 8 板块③） ----------
+       真数据一条都没有时，用示例数据把界面喂饱，页头明确标出「示例」。
+       本页只读不写，所以示例数据在这里不存在污染问题。 */
+    var MOCK = null;
+
+    function allRecords() {
+      return MOCK ? MOCK.records : (Store.getRecords() || []);
+    }
+
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined && text !== null) e.textContent = text;
+      return e;
+    }
+
+    /* ---------- 状态层 ---------- */
+
+    function renderState(kind) {
+      var layer = document.getElementById('stateLayer');
+      var box;
+
+      if (kind === 'loading') {
+        box = el('div', 'state loading');
+        box.appendChild(el('div', 'state-title', '正在整理记录…'));
+        ['w60', 'w85', 'w40'].forEach(function (w) {
+          var s = el('div', 'skel ' + w);
+          s.style.margin = '12px auto';
+          box.appendChild(s);
+        });
+      } else if (kind === 'empty') {
+        box = el('div', 'state');
+        box.appendChild(el('div', 'state-title', '还没有可以记的东西'));
+        box.appendChild(el('p', null, '这里只放你已经做过的。先写一个目标，再从今天的第一条锚点开始。'));
+        var act = el('div', 'state-act');
+        var b = el('button', null, '去首页写下目标');
+        b.addEventListener('click', function () { location.href = 'index.html'; });
+        act.appendChild(b);
+        box.appendChild(act);
+      } else if (kind === 'error') {
+        box = el('div', 'state error');
+        box.appendChild(el('div', 'state-title', '读不到本地数据'));
+        box.appendChild(el('p', null, '这个页面的本地存储被浏览器禁掉了，所以别处填的东西这里读不出来。'));
+        var p1 = el('p');
+        p1.appendChild(document.createTextNode('最常见的原因：你是'));
+        p1.appendChild(el('b', null, '双击 html 文件'));
+        p1.appendChild(document.createTextNode('打开的，地址栏开头是 '));
+        p1.appendChild(el('code', null, 'file://'));
+        p1.appendChild(document.createTextNode(' 。'));
+        box.appendChild(p1);
+        var p2 = el('p');
+        p2.appendChild(document.createTextNode('改法：地址栏换成 '));
+        p2.appendChild(el('code', null, 'http://localhost:8000/records.html'));
+        p2.appendChild(document.createTextNode('，或者直接用公网地址打开。'));
+        box.appendChild(p2);
+      }
+
+      layer.innerHTML = '';
+      if (kind) layer.appendChild(box);
+      layer.style.display = kind ? 'block' : 'none';
+    }
+
+    /* ---------- 每天一块 ---------- */
+
+    function renderDays() {
+      var listEl = document.getElementById('dayList');
+      listEl.innerHTML = '';
+
+      var days = Records.buildDays(allRecords(), today);
+      dayCount = days.length;
+
+      if (!days.length) {
+        var e = el('div', 'state');
+        e.appendChild(el('div', 'state-title', '还没有记录'));
+        e.appendChild(el('p', null, '今天是第一天。做完体检，这里就会长出一条。'));
+        listEl.appendChild(e);
+        document.getElementById('dayChip').textContent = '0 天';
+        return;
+      }
+
+      document.getElementById('dayChip').textContent = days.length + ' 天';
+
+      days.forEach(function (d) {
+        var box = el('div', 'rec rec-day' + (d.date === today ? ' today' : ''));
+
+        var head = el('div', 'rec-head');
+        head.appendChild(el('span', 'rec-date', d.label + ' · ' + d.weekday));
+
+        var dots = el('span', 'rec-dots');
+        if (d.total) {
+          [d.anchors[0] && d.anchors[0].done, d.anchors[1] && d.anchors[1].done].forEach(function (ok) {
+            dots.appendChild(el('i', 'rec-dot' + (ok ? ' on' : '')));
+          });
+        }
+        head.appendChild(dots);
+        box.appendChild(head);
+
+        // 那天的两条锚点
+        d.anchors.forEach(function (a) {
+          var line = el('div', 'rec-anchor' + (a.done ? ' done' : ''));
+          line.appendChild(el('span', 'k', a.tag));
+          line.appendChild(el('span', 'v', a.text));
+          line.appendChild(el('span', 'm ' + (a.done ? 'ok' : 'no'), a.done ? '✓' : '○'));
+          box.appendChild(line);
+        });
+
+        // 体检
+        if (d.checkin) {
+          box.appendChild(el('div', 'rec-line',
+            '体检　睡 ' + d.checkin.sleep + ' · 精力 ' + d.checkin.energy + ' · 情绪 ' + d.checkin.mood));
+        }
+
+        // 复盘
+        var rs = [];
+        if (d.review.state_score) rs.push('状态 ' + d.review.state_score + ' 格');
+        if (d.review.method_score) rs.push('方法对上 ' + d.review.method_score + ' 格');
+        if (d.review.method_text) rs.push('方法：' + d.review.method_text);
+        if (d.review.hard_start_text) rs.push('硬启动：' + d.review.hard_start_text);
+        if (rs.length) box.appendChild(el('div', 'rec-line', rs.join('　·　')));
+
+        // 一项都没做、也没复盘：如实说，不美化
+        if (!d.anchors.length && !d.checkin && !rs.length) {
+          box.appendChild(el('div', 'rec-line', '这天留了记录，但没有内容。'));
+        }
+
+        listEl.appendChild(box);
+      });
+    }
+
+    /* ---------- 主流程 ---------- */
+
+    function render() {
+      storageOK = Store.isAvailable();
+      var goal = Store.getGoal();
+      hasGoal = !!(goal && goal.content);
+
+      /* ---------- 示例模式 ----------
+         ?mock=1 强制开 ／ ?mock=0 强制关 ／ 默认：一条真实记录都没有时自动开。 */
+      var qMock = null;
+      try { qMock = new URLSearchParams(location.search).get('mock'); } catch (e) { qMock = null; }
+      var realDays = Records.buildDays(Store.getRecords(), today);
+      MOCK = null;
+      if (qMock === '1') {
+        MOCK = Mock.build(today);
+      } else if (qMock !== '0' && !hasGoal && realDays.length === 0) {
+        MOCK = Mock.build(today);
+      }
+      if (MOCK) { goal = MOCK.goal; hasGoal = true; }
+
+      if (forced === 'error' || !storageOK) {
+        renderState('error');
+        document.getElementById('content').style.display = 'none';
+        finishDiag();
+        return;
+      }
+
+      var records = allRecords();
+      var days = Records.buildDays(records, today);
+
+      if (forced === 'empty' || !hasGoal || days.length === 0) {
+        renderState('empty');
+        document.getElementById('content').style.display = 'none';
+        finishDiag();
+        return;
+      }
+
+      renderState(null);
+      document.getElementById('content').style.display = 'block';
+
+      if (MOCK) showMockBadge();
+
+      var badge = document.getElementById('goalBadge');
+      if (goal && goal.content) {
+        badge.textContent = '目标：' + goal.content;
+        badge.style.display = 'inline-block';
+        badge.title = goal.content;
+      }
+
+      var stats = Growth.computeStats(records, today);
+      var sum = Records.summary(records, today);
+
+      document.getElementById('numStreak').textContent = stats.streak;
+      document.getElementById('numAnchors').textContent = sum.totalAnchors;
+      document.getElementById('numDays').textContent = sum.recordedDays;
+
+      document.getElementById('ratioLine').textContent =
+        sum.spanDays > 0
+          ? '从 ' + Growth.shortDate(sum.firstDate) + ' 到现在一共 ' + sum.spanDays + ' 天，' +
+            sum.recordedDays + ' 天留下了记录（占 ' + Math.round(sum.recordedDays / sum.spanDays * 100) + '%）。'
+          : '';
+
+      renderDays();
+      finishDiag();
+    }
+
+    /* ---------- 示例数据徽标 ---------- */
+
+    function showMockBadge() {
+      var mb = document.getElementById('demoBadge');
+      if (!mb) return;
+      mb.textContent = '示例数据 · 开始写我自己的';
+      mb.className = 'badge on';
+      mb.style.display = 'inline-block';
+      mb.style.cursor = 'pointer';
+      mb.title = '示例数据只在页面上显示，不会写进你的记录；你有了真实数据，它自动消失。';
+      mb.addEventListener('click', function () { location.href = 'index.html'; });
+    }
+
+    function finishDiag() {
+      var d = [];
+      d.push('存储' + (storageOK ? '可用' : '被禁'));
+      d.push('目标' + (hasGoal ? '已读到' : '未读到'));
+      d.push('记录' + dayCount + '天');
+      if (MOCK) d.push('示例数据=开');
+      if (forced) d.push('演示状态=' + forced);
+      if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
+      var diagEl = document.getElementById('diag');
+      diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
+      diagEl.style.color = window.__err.length ? 'var(--danger)' : 'var(--ink-3)';
+    }
+
+    /* ---------- 启动 ---------- */
+
+    var demo = document.getElementById('demoBadge');
+    if (forced) {
+      demo.textContent = '演示：' + forced + ' 态（点这里看正常）';
+      demo.className = 'badge on';
+      demo.style.display = 'inline-block';
+      demo.style.cursor = 'pointer';
+      demo.addEventListener('click', function () { location.href = 'records.html'; });
+    }
+
+    if (forced === 'loading') {
+      renderState('loading');
+      finishDiag();
+    } else {
+      renderState('loading');
+      setTimeout(render, 450);
+    }
+  })();
+  </script>
+</body>
+</html>

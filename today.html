@@ -16,85 +16,235 @@
   </script>
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap wide">
 
-    <!-- 报错框：平时隐藏，一出错就显示 -->
-    <pre id="errBox" style="display:none;color:#c0392b;white-space:pre-wrap;font-size:13px"></pre>
+    <pre id="errBox"></pre>
 
     <nav class="nav">
       <a href="index.html">首页</a>
       <a href="today.html" class="active">今日</a>
+      <a href="records.html">记录台</a>
       <a href="reflect.html">复盘</a>
       <a href="growth.html">成长</a>
     </nav>
 
-    <h1>今日</h1>
-    <p class="muted">状态不对，努力白费。所以今天不从"做什么"开始，从"你现在什么状态"开始。</p>
+    <header class="page-head">
+      <div>
+        <h1>今日</h1>
+        <p class="muted" style="margin:4px 0 0">
+          状态不对，努力白费。今天不从"做什么"开始，从"你现在什么状态"开始。
+        </p>
+      </div>
+      <div class="head-side">
+        <span class="badge" id="dayBadge" style="display:none"></span>
+        <span class="badge" id="demoBadge" style="display:none"></span>
+      </div>
+    </header>
 
-    <!-- 没有目标 -->
-    <div class="card" id="noGoalCard" style="display:none">
-      <p>还没有目标，锚点无从谈起。先去首页写一句你想做成的事。</p>
-      <a href="index.html"><button>去首页</button></a>
-    </div>
+    <!-- 四种状态都住在这里：加载中 / 空 / 错误；正常时它是空的 -->
+    <div id="stateLayer"></div>
 
-    <!-- 体检 -->
-    <div class="card" id="checkinCard" style="display:none">
-      <h2 style="margin-top:0">先看状态</h2>
-      <p class="muted">三个数字，几秒钟。不用准确，凭感觉——它是给你自己看的读数，不是给谁交的作业。</p>
+    <!-- 正常内容 -->
+    <div id="content" style="display:none">
+      <div class="layout">
 
-      <p class="q">1. 昨晚睡了多久？<span class="picked" id="pickedSleep"></span></p>
-      <div class="scale" id="scaleSleep"></div>
-      <p class="muted" id="hintSleep" style="font-size:12px;margin:2px 0 0"></p>
+        <div class="col">
+          <!-- 体检 -->
+          <div class="card" id="checkinCard" style="display:none">
+            <h2>先看状态</h2>
+            <p class="muted">
+              三个数字，几秒钟。不用准确，凭感觉——它是给你自己看的读数，不是给谁交的作业。
+            </p>
 
-      <p class="q">2. 今天的精力？<span class="picked" id="pickedEnergy"></span></p>
-      <div class="scale" id="scaleEnergy"></div>
-      <p class="muted" id="hintEnergy" style="font-size:12px;margin:2px 0 0"></p>
+            <p class="q">1. 昨晚睡了多久？<span class="picked" id="pickedSleep"></span></p>
+            <div class="scale" id="scaleSleep"></div>
+            <p class="muted" id="hintSleep" style="font-size:12px;margin:2px 0 0"></p>
 
-      <p class="q">3. 今天的情绪？<span class="picked" id="pickedMood"></span></p>
-      <div class="scale" id="scaleMood"></div>
-      <p class="muted" id="hintMood" style="font-size:12px;margin:2px 0 0"></p>
+            <p class="q">2. 今天的精力？<span class="picked" id="pickedEnergy"></span></p>
+            <div class="scale" id="scaleEnergy"></div>
+            <p class="muted" id="hintEnergy" style="font-size:12px;margin:2px 0 0"></p>
 
-      <p style="margin-bottom:0"><button id="genBtn">生成今天的锚点</button></p>
-      <p class="tip" id="checkinTip" style="display:none">三项都要选一下，才知道该给你哪两条锚点。</p>
-    </div>
+            <p class="q">3. 今天的情绪？<span class="picked" id="pickedMood"></span></p>
+            <div class="scale" id="scaleMood"></div>
+            <p class="muted" id="hintMood" style="font-size:12px;margin:2px 0 0"></p>
 
-    <!-- 今日锚点 -->
-    <div class="card" id="anchorCard" style="display:none">
-      <h2 style="margin-top:0">今天的锚点</h2>
-      <p class="muted">早一项、晚一项。做不完不扣分——只求不断。做完的会在下面留痕。</p>
-      <div id="anchors"></div>
-      <p class="muted" id="doneSummary" style="margin-bottom:0"></p>
+            <p style="margin-bottom:0"><button id="genBtn">生成今天的锚点</button></p>
+            <p class="tip" id="checkinTip" style="display:none">三项都要选一下，才知道该给你哪两条锚点。</p>
+          </div>
+
+          <!-- 今日锚点：本页的核心动作 -->
+          <div class="card" id="anchorCard" style="display:none">
+            <div class="card-head">
+              <h2>今天的锚点</h2>
+              <span class="count-chip" id="doneChip"></span>
+            </div>
+            <p class="muted" style="margin-top:0">
+              早一项、晚一项。<b>点整块</b>就是做了，再点一下取消。做不完不扣分——只求不断。
+            </p>
+            <div id="anchors"></div>
+            <p class="muted" id="doneSummary" style="margin-bottom:0"></p>
+          </div>
+        </div>
+
+        <aside class="col">
+          <!-- 最近几天：让自己看见"我到底做了没有" -->
+          <div class="card" id="recentCard">
+            <div class="card-head">
+              <h2>最近几天</h2>
+              <a class="more" href="records.html">记录台 →</a>
+            </div>
+            <p class="muted" style="margin-top:0">唯一的参照物是你自己的过去。</p>
+            <div class="reclist" id="recentList"></div>
+          </div>
+        </aside>
+
+      </div>
     </div>
 
     <!-- 诊断条：验证跑通后可删 -->
-    <p id="diag" style="margin-top:24px;font-size:12px;color:#9aa4b2;text-align:center;line-height:1.8"></p>
+    <p id="diag"></p>
 
   </div>
 
   <script src="js/store.js"></script>
   <script src="js/today.js"></script>
+  <script src="js/mock.js"></script>
   <script>
-    var goal = Store.getGoal();
-    var hasGoal = !!(goal && goal.content);
-    var storageOK = Store.isAvailable();
+  (function () {
+    /* =========================================================
+       今日页（主视图）
+       结构：页头 → 四状态层 → 两栏（左：体检/锚点 ｜ 右：最近记录）
+       两个数据源：
+         · 真实数据 —— 浏览器 localStorage（Store 负责）
+         · 演示状态 —— 地址栏加 ?state=loading|empty|error 可以强制看某个状态
+       ========================================================= */
+
+    /* ---------- 演示开关：?state=xxx ---------- */
+    var forced = null;
+    try { forced = new URLSearchParams(location.search).get('state'); } catch (e) { forced = null; }
 
     var picked = { sleep: null, energy: null, mood: null };
     var currentRec = null;
     var anchorCount = 0;
+    var storageOK = true;
+    var hasGoal = false;
+    var recCount = 0;
 
-    /* ---------- 量表渲染 ---------- */
+    /* ---------- 示例模式（Day 8 板块③） ----------
+       真数据一条都没有时，用示例数据把界面喂饱，页头明确标出「示例」。
+       示例模式下所有写操作只改内存、不落盘 —— 假数据碰不到你的真实记录。 */
+    var MOCK = null;
+
+    /* ---------- 小工具 ---------- */
+
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined && text !== null) e.textContent = text;
+      return e;
+    }
+
+    function daysBetween(a, b) {
+      var pa = String(a).split('-'), pb = String(b).split('-');
+      var da = new Date(Number(pa[0]), Number(pa[1]) - 1, Number(pa[2]));
+      var db = new Date(Number(pb[0]), Number(pb[1]) - 1, Number(pb[2]));
+      return Math.round((db - da) / 86400000);
+    }
+
+    /** 只有"有内容"的天才进列表：什么都没填的空壳不算一天 */
+    function hasContent(r) {
+      if (!r || !r.date) return false;
+      if (r.checkin) return true;
+      if (r.morning_done || r.evening_done) return true;
+      if (r.state_score !== null && r.state_score !== undefined) return true;
+      if (r.method_text || r.hard_start_text) return true;
+      return false;
+    }
+
+    /* ---------- 数据入口：真实数据优先，示例模式走示例 ---------- */
+
+    function allRecords() {
+      return MOCK ? MOCK.records : (Store.getRecords() || []);
+    }
+
+    function todayRecord() {
+      if (!MOCK) return Store.getRecord();
+      var t = Store.todayStr();
+      var list = MOCK.records;
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].date === t) return list[i];
+      }
+      return null;
+    }
+
+    /** 写：示例模式只改内存，绝不落盘 */
+    function writePatch(rec, patch) {
+      if (!MOCK) return Store.upsertRecord(null, patch);
+      var target = rec || { date: Store.todayStr() };
+      for (var k in patch) {
+        if (Object.prototype.hasOwnProperty.call(patch, k)) target[k] = patch[k];
+      }
+      return target;
+    }
+
+    /* ---------- 状态层：四种状态里的三种（正常态不占位） ---------- */
+
+    function renderState(kind) {
+      var layer = document.getElementById('stateLayer');
+      var box = el('div', 'state');
+      var title, ps = [], acts = [];
+
+      if (kind === 'loading') {
+        box = el('div', 'state loading');
+        box.appendChild(el('div', 'state-title', '正在读今天的记录…'));
+        ['w60', 'w85', 'w40'].forEach(function (w) {
+          var s = el('div', 'skel ' + w);
+          s.style.margin = '12px auto';
+          box.appendChild(s);
+        });
+      } else if (kind === 'empty') {
+        box.appendChild(el('div', 'state-title', '还没有目标'));
+        box.appendChild(el('p', null, '锚点是对着目标拆的。先写一句你想做成的事——一句话就够，不用长。'));
+        var a = el('div', 'state-act');
+        var b = el('button', null, '去首页写下目标');
+        b.addEventListener('click', function () { location.href = 'index.html'; });
+        a.appendChild(b);
+        box.appendChild(a);
+      } else if (kind === 'error') {
+        box = el('div', 'state error');
+        box.appendChild(el('div', 'state-title', '读不到本地数据'));
+        box.appendChild(el('p', null, '这个页面的本地存储被浏览器禁掉了，所以别处填的东西这里读不出来。'));
+        var p1 = el('p');
+        p1.appendChild(document.createTextNode('最常见的原因：你是'));
+        p1.appendChild(el('b', null, '双击 html 文件'));
+        p1.appendChild(document.createTextNode('打开的，地址栏开头是 '));
+        p1.appendChild(el('code', null, 'file://'));
+        p1.appendChild(document.createTextNode(' 。'));
+        box.appendChild(p1);
+        var p2 = el('p');
+        p2.appendChild(document.createTextNode('改法：地址栏换成 '));
+        p2.appendChild(el('code', null, 'http://localhost:8000/today.html'));
+        p2.appendChild(document.createTextNode('，或者直接用公网地址打开。'));
+        box.appendChild(p2);
+      }
+
+      layer.innerHTML = '';
+      if (kind) layer.appendChild(box);
+      layer.style.display = kind ? 'block' : 'none';
+    }
+
+    /* ---------- 量表 ---------- */
+
     function renderScale(boxId, key, labels, pickedLabelId, hintId) {
       var box = document.getElementById(boxId);
       var hint = document.getElementById(hintId);
       if (hint) hint.textContent = '1 = ' + labels[0] + '　→　5 = ' + labels[4];
       for (var i = 0; i < 5; i++) {
         (function (val) {
-          var b = document.createElement('button');
-          b.textContent = String(val);
+          var b = el('button', null, String(val));
           b.title = labels[val - 1];
           b.addEventListener('click', function () {
             picked[key] = val;
-            // 只保留一个选中
             var kids = box.getElementsByTagName('button');
             for (var j = 0; j < kids.length; j++) kids[j].className = '';
             b.className = 'on';
@@ -105,47 +255,52 @@
       }
     }
 
-    /* ---------- 锚点渲染 ---------- */
+    /* ---------- 锚点块（整块可点，不是小方框） ---------- */
+
     function renderAnchors(anchors, rec) {
       var box = document.getElementById('anchors');
       box.innerHTML = '';
       anchorCount = 0;
 
       var rows = [
-        { key: 'morning_done', tag: '早上', data: anchors.morning },
-        { key: 'evening_done', tag: '晚上', data: anchors.evening }
+        { key: 'morning_done', tag: '早', data: anchors.morning },
+        { key: 'evening_done', tag: '晚', data: anchors.evening }
       ];
 
       rows.forEach(function (row) {
         if (!row.data) return;
         anchorCount++;
 
-        var lab = document.createElement('label');
-        lab.className = 'item' + (rec[row.key] ? ' done' : '');
+        var lab = el('label', 'anchor' + (rec[row.key] ? ' done' : ''));
 
-        var cb = document.createElement('input');
+        var cb = el('input', 'anchor-cb');
         cb.type = 'checkbox';
         cb.checked = !!rec[row.key];
+
+        var idx = el('span', 'anchor-idx', row.tag);
+
+        var body = el('span', 'anchor-body');
+        body.appendChild(el('span', 'anchor-txt', row.data.text));
+        var why = el('span', 'anchor-why');
+        why.appendChild(el('b', null, '为什么是这条'));
+        why.appendChild(document.createTextNode('　' + row.data.reason));
+        body.appendChild(why);
+
+        var dot = el('span', 'anchor-dot');
+
         cb.addEventListener('change', function () {
           var patch = {};
           patch[row.key] = cb.checked;
-          var saved = Store.upsertRecord(null, patch);
-          currentRec = saved;
-          lab.className = 'item' + (cb.checked ? ' done' : '');
-          updateSummary(saved);
+          currentRec = writePatch(rec, patch);
+          lab.className = 'anchor' + (cb.checked ? ' done' : '');
+          updateSummary(currentRec);
+          renderRecent();          // 右边那栏要跟着动，否则两边对不上
         });
 
-        var body = document.createElement('div');
-        var t1 = document.createElement('div');
-        t1.innerHTML = '<b>' + row.tag + '</b>　' + row.data.text;
-        var t2 = document.createElement('div');
-        t2.className = 'muted';
-        t2.textContent = '为什么是这条：' + row.data.reason;
-        body.appendChild(t1);
-        body.appendChild(t2);
-
         lab.appendChild(cb);
+        lab.appendChild(idx);
         lab.appendChild(body);
+        lab.appendChild(dot);
         box.appendChild(lab);
       });
 
@@ -153,21 +308,143 @@
     }
 
     function updateSummary(rec) {
-      var n = 0;
-      if (rec.morning_done) n++;
-      if (rec.evening_done) n++;
+      var n = (rec.morning_done ? 1 : 0) + (rec.evening_done ? 1 : 0);
+      var chip = document.getElementById('doneChip');
+      chip.textContent = n + ' / ' + anchorCount;
+      chip.className = 'count-chip' + (n === anchorCount && anchorCount > 0 ? ' full' : '');
       document.getElementById('doneSummary').textContent =
-        '今天完成 ' + n + ' / 2 项。' + (n === 2 ? '两项都做了，这就是"不断"。' : '');
+        n === anchorCount && anchorCount > 0
+          ? '两项都做了。今天就到这儿——不用再加码。'
+          : '今天完成 ' + n + ' / ' + anchorCount + ' 项。做一项也是不断。';
+    }
+
+    /* ---------- 最近几天 ---------- */
+
+    function renderRecent() {
+      var listEl = document.getElementById('recentList');
+      listEl.innerHTML = '';
+
+      var list = allRecords().filter(hasContent);
+      var seen = {};
+      list = list.filter(function (r) {
+        if (seen[r.date]) return false;
+        seen[r.date] = true;
+        return true;
+      });
+      list.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+      recCount = list.length;
+      list = list.slice(0, 6);
+
+      if (!list.length) {
+        var e = el('div', 'state');
+        e.appendChild(el('div', 'state-title', '还没有记录'));
+        e.appendChild(el('p', null, '今天是第一天。做完体检，这里就会长出一条。'));
+        listEl.appendChild(e);
+        return;
+      }
+
+      list.forEach(function (r) {
+        var item = el('div', 'rec');
+
+        var head = el('div', 'rec-head');
+        head.appendChild(el('span', 'rec-date', labelForDate(r.date)));
+
+        var dots = el('span', 'rec-dots');
+        [r.morning_done, r.evening_done].forEach(function (ok) {
+          dots.appendChild(el('i', 'rec-dot' + (ok ? ' on' : '')));
+        });
+        head.appendChild(dots);
+        item.appendChild(head);
+
+        var lines = [];
+        if (r.anchors && r.anchors.morning) lines.push('早：' + r.anchors.morning.text);
+        if (r.anchors && r.anchors.evening) lines.push('晚：' + r.anchors.evening.text);
+        if (lines.length) {
+          var l1 = el('div', 'rec-line');
+          lines.forEach(function (t, i) {
+            if (i > 0) l1.appendChild(document.createElement('br'));
+            l1.appendChild(document.createTextNode(t));
+          });
+          item.appendChild(l1);
+        }
+
+        var parts = [];
+        if (r.state_score) parts.push('状态 ' + r.state_score + ' 格');
+        if (r.method_score) parts.push('方法对上 ' + r.method_score + ' 格');
+        if (r.checkin) parts.push('睡 ' + r.checkin.sleep + ' · 精 ' + r.checkin.energy + ' · 情 ' + r.checkin.mood);
+        if (parts.length) item.appendChild(el('div', 'rec-line', parts.join('　·　')));
+
+        listEl.appendChild(item);
+      });
+    }
+
+    function labelForDate(dateStr) {
+      var t = Store.todayStr();
+      var p = String(dateStr).split('-');
+      var md = Number(p[1]) + '月' + Number(p[2]) + '日';
+      if (dateStr === t) return '今天 · ' + md;
+      if (daysBetween(dateStr, t) === 1) return '昨天 · ' + md;
+      return md;
     }
 
     /* ---------- 主流程 ---------- */
-    if (!hasGoal) {
-      document.getElementById('noGoalCard').style.display = 'block';
-    } else {
-      currentRec = Store.getRecord();   // 今天的记录，没有则 null
 
-      // 体检数据在，就直接显示锚点；不在，先做体检
+    function render() {
+      storageOK = Store.isAvailable();
+      var goal = Store.getGoal();
+      hasGoal = !!(goal && goal.content);
+
+      /* ---------- 示例模式 ----------
+         ?mock=1 强制开 ／ ?mock=0 强制关 ／ 默认：一条真实记录都没有时自动开。
+         为什么自动开：空白页面看不出界面长什么样，也截不了图。 */
+      var qMock = null;
+      try { qMock = new URLSearchParams(location.search).get('mock'); } catch (e) { qMock = null; }
+      var realHasContent = (Store.getRecords() || []).some(hasContent);
+      MOCK = null;
+      if (qMock === '1') {
+        MOCK = Mock.build(Store.todayStr());
+      } else if (qMock !== '0' && !hasGoal && !realHasContent) {
+        MOCK = Mock.build(Store.todayStr());
+      }
+      if (MOCK) { goal = MOCK.goal; hasGoal = true; }
+
+      /* ① 错误态：存储被禁，或演示强制 */
+      if (forced === 'error' || !storageOK) {
+        renderState('error');
+        document.getElementById('content').style.display = 'none';
+        finishDiag();
+        return;
+      }
+
+      /* ② 空态：还没有目标，或演示强制 */
+      if (forced === 'empty' || !hasGoal) {
+        renderState('empty');
+        document.getElementById('content').style.display = 'none';
+        finishDiag();
+        return;
+      }
+
+      /* ③ 正常态 */
+      renderState(null);
+      document.getElementById('content').style.display = 'block';
+
+      var badge = document.getElementById('dayBadge');
+      var t = Store.todayStr();
+      var d = new Date();
+      var wk = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+      badge.textContent = (d.getMonth() + 1) + '月' + d.getDate() + '日 · 周' + wk;
+      if (goal.created_at) {
+        var nth = daysBetween(goal.created_at, t) + 1;
+        badge.textContent += ' · 第 ' + nth + ' 天';
+      }
+      badge.style.display = 'inline-block';
+
+      renderRecent();
+
+      currentRec = todayRecord();          // 今天的记录，没有则 null（示例模式取示例）
+
       if (currentRec && currentRec.checkin) {
+        // 体检做过了：直接给锚点
         var anchors = currentRec.anchors;
         if (!anchors || !anchors.morning || !anchors.evening) {
           anchors = Today.buildAnchors(currentRec.checkin);
@@ -176,44 +453,88 @@
         document.getElementById('anchorCard').style.display = 'block';
         renderAnchors(anchors, currentRec);
       } else {
+        // 还没体检：先做体检
+        document.getElementById('anchorCard').style.display = 'none';
         document.getElementById('checkinCard').style.display = 'block';
         renderScale('scaleSleep',  'sleep',  Today.SLEEP_LABELS,  'pickedSleep',  'hintSleep');
         renderScale('scaleEnergy', 'energy', Today.ENERGY_LABELS, 'pickedEnergy', 'hintEnergy');
         renderScale('scaleMood',   'mood',   Today.MOOD_LABELS,   'pickedMood',   'hintMood');
       }
+
+      if (MOCK) showMockBadge();
+      finishDiag();
     }
 
     /* ---------- 生成锚点 ---------- */
-    var genBtn = document.getElementById('genBtn');
-    if (genBtn) {
-      genBtn.addEventListener('click', function () {
-        var tip = document.getElementById('checkinTip');
-        if (picked.sleep === null || picked.energy === null || picked.mood === null) {
-          tip.style.display = 'block';
-          return;
-        }
-        tip.style.display = 'none';
 
-        var anchors = Today.buildAnchors(picked);
-        var saved = Store.upsertRecord(null, { checkin: picked, anchors: anchors });
-        currentRec = saved;
+    document.getElementById('genBtn').addEventListener('click', function () {
+      var tip = document.getElementById('checkinTip');
+      if (picked.sleep === null || picked.energy === null || picked.mood === null) {
+        tip.style.display = 'block';
+        return;
+      }
+      tip.style.display = 'none';
 
-        document.getElementById('checkinCard').style.display = 'none';
-        document.getElementById('anchorCard').style.display = 'block';
-        renderAnchors(anchors, saved);
-      });
+      var anchors = Today.buildAnchors(picked);
+      currentRec = writePatch(currentRec, { checkin: picked, anchors: anchors });
+
+      document.getElementById('checkinCard').style.display = 'none';
+      document.getElementById('anchorCard').style.display = 'block';
+      renderAnchors(anchors, currentRec);
+      renderRecent();
+      finishDiag();
+    });
+
+    /* ---------- 示例数据徽标 ---------- */
+
+    function showMockBadge() {
+      var mb = document.getElementById('demoBadge');
+      if (!mb) return;
+      mb.textContent = '示例数据 · 开始写我自己的';
+      mb.className = 'badge on';
+      mb.style.display = 'inline-block';
+      mb.style.cursor = 'pointer';
+      mb.title = '示例数据只在页面上显示，不会写进你的记录；你有了真实数据，它自动消失。';
+      mb.addEventListener('click', function () { location.href = 'index.html'; });
     }
 
     /* ---------- 诊断条 ---------- */
-    var d = [];
-    d.push('存储' + (storageOK ? '可用' : '被禁'));
-    d.push('目标' + (hasGoal ? '已读到' : '未读到'));
-    d.push('今日体检' + (currentRec && currentRec.checkin ? '已填' : '未填'));
-    d.push('锚点' + anchorCount + '项');
-    if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
-    var diagEl = document.getElementById('diag');
-    diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
-    diagEl.style.color = window.__err.length ? '#c0392b' : '#9aa4b2';
+
+    function finishDiag() {
+      var d = [];
+      d.push('存储' + (storageOK ? '可用' : '被禁'));
+      d.push('目标' + (hasGoal ? '已读到' : '未读到'));
+      d.push('今日体检' + (currentRec && currentRec.checkin ? '已填' : '未填'));
+      d.push('锚点' + anchorCount + '项');
+      d.push('记录' + recCount + '天');
+      if (MOCK) d.push('示例数据=开');
+      if (forced) d.push('演示状态=' + forced);
+      if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
+      var diagEl = document.getElementById('diag');
+      diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
+      diagEl.style.color = window.__err.length ? 'var(--danger)' : 'var(--ink-3)';
+    }
+
+    /* ---------- 启动 ---------- */
+
+    var demo = document.getElementById('demoBadge');
+    if (forced) {
+      demo.textContent = '演示：' + forced + ' 态（点这里看正常）';
+      demo.className = 'badge on';
+      demo.style.display = 'inline-block';
+      demo.style.cursor = 'pointer';
+      demo.addEventListener('click', function () { location.href = 'today.html'; });
+    }
+
+    if (forced === 'loading') {
+      renderState('loading');        // 停住不动，方便盯着看
+      currentRec = Store.getRecord();
+      finishDiag();
+    } else {
+      renderState('loading');
+      setTimeout(render, 450);       // 稍等一下再出内容，让"加载中"真的看得见
+    }
+  })();
   </script>
 </body>
 </html>

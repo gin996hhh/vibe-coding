@@ -24,12 +24,14 @@
     <nav class="nav">
       <a href="index.html">首页</a>
       <a href="today.html">今日</a>
+      <a href="records.html">记录台</a>
       <a href="reflect.html">复盘</a>
       <a href="growth.html" class="active">成长</a>
     </nav>
 
     <h1>成长</h1>
     <p class="muted">这里只有一个参照物：你自己的过去。没有排行榜，没有火苗，没有积分。</p>
+    <p class="muted" id="mockNote" style="display:none"></p>
 
     <!-- 没有目标 -->
     <div class="card" id="noGoalCard" style="display:none">
@@ -86,12 +88,35 @@
 
   <script src="js/store.js"></script>
   <script src="js/growth.js"></script>
+  <script src="js/mock.js"></script>
   <script>
     var goal = Store.getGoal();
     var hasGoal = !!(goal && goal.content);
     var storageOK = Store.isAvailable();
     var today = Store.todayStr();
     var records = Store.getRecords();
+
+    /* ---------- 示例模式（Day 8 板块③） ----------
+       ?mock=1 强制开 ／ ?mock=0 强制关 ／ 默认：一条真实记录都没有时自动开。
+       本页只读不写，不存在污染问题。 */
+    var qMock = null;
+    try { qMock = new URLSearchParams(location.search).get('mock'); } catch (e) { qMock = null; }
+    var realStats = Growth.computeStats(records, today);
+    var MOCK = null;
+    if (qMock === '1') {
+      MOCK = Mock.build(today);
+    } else if (qMock !== '0' && !hasGoal && realStats.activeDays === 0) {
+      MOCK = Mock.build(today);
+    }
+    if (MOCK) {
+      goal = MOCK.goal;
+      hasGoal = true;
+      records = MOCK.records;
+      var mn = document.getElementById('mockNote');
+      mn.innerHTML = '<b>下面是示例数据</b>（不是你的记录）· <a href="index.html">开始写我自己的</a>';
+      mn.style.display = 'block';
+    }
+
     var stats = Growth.computeStats(records, today);
     var chartPoints = 0;
 
@@ -151,6 +176,7 @@
     var d = [];
     d.push('存储' + (storageOK ? '可用' : '被禁'));
     d.push('目标' + (hasGoal ? '已读到' : '未读到'));
+    if (MOCK) d.push('示例数据=开');
     d.push('记录' + (records ? records.length : 0) + '条');
     d.push('有内容' + stats.activeDays + '天');
     d.push('曲线' + chartPoints + '点');
@@ -158,7 +184,7 @@
     if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
     var diagEl = document.getElementById('diag');
     diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
-    diagEl.style.color = window.__err.length ? '#c0392b' : '#9aa4b2';
+    diagEl.style.color = window.__err.length ? 'var(--danger)' : 'var(--ink-3)';
   </script>
 </body>
 </html>
