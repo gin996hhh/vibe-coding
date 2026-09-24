@@ -18,7 +18,7 @@
   --line:      #2A3A5A;  /* 边框、分隔线 */
   --ink:       #E8EFFA;  /* 主文字 */
   --ink-2:     #A8B8D4;  /* 次文字 */
-  --ink-3:     #7587A6;  /* 三级文字、刻度、诊断条 */
+  --ink-3:     #8FA0BC;  /* 三级文字、刻度、诊断条（旧值 #7587A6 对比度 3.9 不达标，Day9 调亮） */
   --sky:       #6E9BD6;  /* 天光蓝：链接、选中、进行中 */
   --sky-deep:  #3E6BB0;  /* 主按钮 */
   --sky-hi:    #4A7CC7;  /* 主按钮悬停 */
@@ -516,5 +516,5 @@ code {
   margin: 0 0 16px;
 }
 
-/* 诊断条：验证跑通后可删 */
-#diag { margin-top: 26px; font-size: 12px; color: var(--ink-3); text-align: center; line-height: 1.8; }
+/* 诊断条：调试读数，默认隐藏——用户不该看到"仪器读数"；地址栏加 ?debug=1 才显示 */
+#diag { display: none; margin-top: 26px; font-size: 12px; color: var(--ink-3); text-align: center; line-height: 1.8; }

@@ -229,7 +229,6 @@
         if (d.review.state_score) rs.push('状态 ' + d.review.state_score + ' 格');
         if (d.review.method_text) rs.push('方法：' + d.review.method_text);
         if (d.review.stuck_text) rs.push('卡在：' + d.review.stuck_text);
-        if (d.review.method_text) rs.push('方法：' + d.review.method_text);
         if (d.review.hard_start_text) rs.push('硬启动：' + d.review.hard_start_text);
         if (rs.length) box.appendChild(el('div', 'rec-line', rs.join('　·　')));
 
@@ -330,8 +329,14 @@
       if (forced) d.push('演示状态=' + forced);
       if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
       var diagEl = document.getElementById('diag');
-      diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
-      diagEl.style.color = window.__err.length ? 'var(--danger)' : 'var(--ink-3)';
+      /* 诊断条默认不显示（?debug=1 才打开）：调试读数不给用户看 */
+      var showDiag = false;
+      try { showDiag = new URLSearchParams(location.search).get('debug') === '1'; } catch (e) {}
+      if (showDiag) {
+        diagEl.style.display = 'block';
+        diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');
+        diagEl.style.color = window.__err.length ? 'var(--danger)' : 'var(--ink-3)';
+      }
     }
 
     /* ---------- 启动 ---------- */
