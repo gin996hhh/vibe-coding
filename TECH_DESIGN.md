@@ -133,7 +133,7 @@ localStorage 只有"键 → 值"一种结构，值必须是字符串，所以对
     "evening_done": false,
     "state_score": 3,
     "method_text": "跟读了 3 句，没卡壳",
-    "method_score": 4,
+    "stuck_text": "不是不想读，是词太生，读第二句就卡住了",
     "hard_start_text": "不想开口，还是先开了口"
   }
 ]

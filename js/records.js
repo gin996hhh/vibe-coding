@@ -76,7 +76,7 @@
           state_score: (r.state_score === undefined ? null : r.state_score),
           ritual_count: (r.ritual_count === undefined ? null : r.ritual_count),
           method_text: r.method_text || '',
-          method_score: (r.method_score === undefined ? null : r.method_score),
+          stuck_text: r.stuck_text || '',
           hard_start_text: r.hard_start_text || ''
         }
       });

@@ -41,7 +41,7 @@
     <!-- 复盘卡 -->
     <div class="card" id="reflectCard" style="display:none">
       <h2 style="margin-top:0">今天的复盘卡</h2>
-      <p class="muted">四个数，一分钟。不追求准确——追求的是它明天能和今天比。</p>
+      <p class="muted">两个数、两句实话，两分钟。不追求准确——追求的是它明天能和今天比。</p>
 
       <!-- Q1 -->
       <p class="q">1. 今天的状态几格？<span class="picked" id="pickedState"></span></p>
@@ -53,15 +53,28 @@
       <div class="scale" id="scaleRitual"></div>
       <p class="muted" id="hintRitual" style="font-size:12px;margin:2px 0 0"></p>
 
-      <!-- Q3 -->
-      <p class="q" style="margin-bottom:6px">3. 今天你用的方法是什么？</p>
+      <!-- Q3（缺口 C）
+           原来问的是"这个方法，今天对上了吗"让用户自己打分——
+           可"对上"长什么样他没体验过，只能拿想象当尺子，一打就是折扣。
+           改成：上排＝预期（他昨天亲手写的锚点），下排＝实际（今天勾没勾），
+           两样摆在一起差距自己显形；下面只问"卡在哪一下"，问的是事实，不是评价。 -->
+      <p class="q" style="margin-bottom:6px">3. 昨天写的，和今天做的</p>
+      <p class="muted" style="font-size:12px;margin:0 0 10px">
+        不用你打分。上面是你昨天亲手写的，旁边是今天勾的结果——对不对得上，一眼就看出来了。
+      </p>
+      <div class="vsbox" id="vsBox"></div>
+
+      <p class="q" style="margin:16px 0 6px">今天实际怎么做的那件事？</p>
       <p class="muted" style="font-size:12px;margin:0 0 6px">
-        自己找的、自己判断——产品不给你标准答案。写一句你今天实际怎么做的那件事。
+        自己找的、自己判断——产品不给你标准答案。写一句就够。
       </p>
       <input type="text" id="methodText" placeholder="例：每天 3 分钟跟读一句，不看字幕">
-      <p class="q" style="margin:10px 0 4px">这个方法，今天对上了吗？<span class="picked" id="pickedMethod"></span></p>
-      <div class="scale" id="scaleMethod"></div>
-      <p class="muted" id="hintMethod" style="font-size:12px;margin:2px 0 0"></p>
+
+      <p class="q" style="margin:16px 0 6px">今天卡在哪一下？</p>
+      <p class="muted" style="font-size:12px;margin:0 0 6px">
+        卡点写条件和动作，不写"我不行"——写清那个点，明天才知道要动哪里。
+      </p>
+      <input type="text" id="stuckText" placeholder="例：不是不想做，是回到家已经 11 点半了">
 
       <!-- Q4 -->
       <p class="q" style="margin-bottom:6px">4. 今天哪个动作是"硬启动"完成的？</p>
@@ -71,7 +84,7 @@
       <input type="text" id="hardStartText" placeholder="例：不想动但还是出门走了 10 分钟">
 
       <p style="margin:18px 0 0"><button id="saveBtn">保存今天的复盘</button></p>
-      <p class="tip" id="saveTip" style="display:none">第 1 问和第 3 问的自评要选一下，那才是能拿来比较的读数。</p>
+      <p class="tip" id="saveTip" style="display:none">第 1 问（今天的状态几格）要选一下——那是唯一能拿来和明天比的读数。</p>
       <p class="muted" id="savedMsg" style="display:none;margin-bottom:0"></p>
     </div>
 
@@ -149,14 +162,73 @@
         document.getElementById('pickedState').textContent = Reflect.STATE_LABELS[rec.state_score - 1];
         any = true;
       }
-      if (rec.method_score) {
-        picked.method = rec.method_score;
-        document.getElementById('pickedMethod').textContent = Reflect.METHOD_LABELS[rec.method_score - 1];
-        any = true;
-      }
       if (rec.method_text) { document.getElementById('methodText').value = rec.method_text; any = true; }
+      if (rec.stuck_text) { document.getElementById('stuckText').value = rec.stuck_text; any = true; }
       if (rec.hard_start_text) { document.getElementById('hardStartText').value = rec.hard_start_text; any = true; }
       return any;
+    }
+
+    /* ---------- 预期 vs 实际（缺口 C） ----------
+       预期 ＝ 他昨天亲手写的两条锚点（标准是他自己给的，不是产品发的）
+       实际 ＝ 今天勾没勾
+       产品只把两样摆在一起，不打分、不评价、不追问"你尽力了吗"。
+       差距先显形，下面那句"卡在哪一下"才有落点。 */
+
+    function spanOf(cls, text) {
+      var s = document.createElement('span');
+      if (cls) s.className = cls;
+      if (text !== undefined && text !== null) s.textContent = text;
+      return s;
+    }
+
+    function mdOf(dateStr) {
+      var p = String(dateStr).split('-');
+      return Number(p[1]) + '月' + Number(p[2]) + '日';
+    }
+
+    /** 今天之前、最近一次写过锚点的日子（没有则 null） */
+    function prevAnchorDay(today) {
+      var prev = null;
+      (Store.getRecords() || []).forEach(function (r) {
+        if (!r || !r.date || r.date >= today) return;
+        if (!r.anchors || (!r.anchors.morning && !r.anchors.evening)) return;
+        if (!prev || r.date > prev.date) prev = r;
+      });
+      return prev;
+    }
+
+    function renderVS() {
+      var box = document.getElementById('vsBox');
+      if (!box) return;
+      box.innerHTML = '';
+
+      var prev = prevAnchorDay(date);
+
+      if (!prev) {
+        var e = document.createElement('div');
+        e.className = 'vsrow';
+        e.appendChild(spanOf('vs-txt', '还没有昨天可比。今天先写下你自己的两条，明天这里就有对照了。'));
+        box.appendChild(e);
+        return;
+      }
+
+      var h = document.createElement('div');
+      h.className = 'vs-head';
+      h.appendChild(spanOf(null, '昨天你写的'));
+      h.appendChild(spanOf(null, mdOf(prev.date)));
+      box.appendChild(h);
+
+      [{ tag: '早', key: 'morning_done', data: prev.anchors.morning },
+       { tag: '晚', key: 'evening_done', data: prev.anchors.evening }].forEach(function (row) {
+        if (!row.data) return;
+        var done = !!(rec && rec[row.key]);
+        var line = document.createElement('div');
+        line.className = 'vsrow ' + (done ? 'hit' : 'miss');
+        line.appendChild(spanOf('vs-tag', row.tag));
+        line.appendChild(spanOf('vs-txt', row.data.text));
+        line.appendChild(spanOf('vs-st', done ? '做到' : '未做'));
+        box.appendChild(line);
+      });
     }
 
     /* ---------- 主流程 ---------- */
@@ -170,7 +242,7 @@
       var autoRitual = Reflect.autoRitualCount(rec);
       renderScale('scaleState',  'state',  Reflect.STATE_LABELS,  'pickedState',  'hintState');
       renderRitual(autoRitual);
-      renderScale('scaleMethod', 'method', Reflect.METHOD_LABELS, 'pickedMethod', 'hintMethod');
+      renderVS();
 
       /* 选中已存过的档位：重新点一次同号按钮，让它变高亮 */
       function activate(boxId, key, val, labId, labels) {
@@ -182,7 +254,6 @@
         document.getElementById(labId).textContent = labels[val - 1];
       }
       activate('scaleState',  'state',  picked.state,  'pickedState',  Reflect.STATE_LABELS);
-      activate('scaleMethod', 'method', picked.method, 'pickedMethod', Reflect.METHOD_LABELS);
 
       if (already) {
         var msg = document.getElementById('savedMsg');
@@ -194,7 +265,7 @@
       /* ---------- 保存 ---------- */
       document.getElementById('saveBtn').addEventListener('click', function () {
         var tip = document.getElementById('saveTip');
-        if (!picked.state || !picked.method) {
+        if (!picked.state) {
           tip.style.display = 'block';
           return;
         }
@@ -204,7 +275,7 @@
           state_score: picked.state,
           ritual_count: picked.ritual === null ? null : picked.ritual,
           method_text: document.getElementById('methodText').value.trim(),
-          method_score: picked.method,
+          stuck_text: document.getElementById('stuckText').value.trim(),
           hard_start_text: document.getElementById('hardStartText').value.trim()
         };
         rec = Store.upsertRecord(date, patch);

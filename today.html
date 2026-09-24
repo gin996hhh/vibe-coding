@@ -83,6 +83,9 @@
             </p>
             <div id="anchors"></div>
             <p class="muted" id="doneSummary" style="margin-bottom:0"></p>
+
+            <!-- 昨天的两条：把"你写的"和"你做到的"摆在一起，不用你去别处翻 -->
+            <div class="prevbox" id="prevBox" style="display:none"></div>
           </div>
         </div>
 
@@ -370,12 +373,52 @@
 
         var parts = [];
         if (r.state_score) parts.push('状态 ' + r.state_score + ' 格');
-        if (r.method_score) parts.push('方法对上 ' + r.method_score + ' 格');
+        if (r.method_text) parts.push('方法：' + r.method_text);
+        if (r.stuck_text) parts.push('卡在：' + r.stuck_text);
         if (r.checkin) parts.push('睡 ' + r.checkin.sleep + ' · 精 ' + r.checkin.energy + ' · 情 ' + r.checkin.mood);
         if (parts.length) item.appendChild(el('div', 'rec-line', parts.join('　·　')));
 
         listEl.appendChild(item);
       });
+    }
+
+    /* ---------- 昨天的两条 ----------
+       把"他昨天亲手写的锚点"和"昨天做到没有"摆在锚点正下方。
+       为什么要摆：预期（昨天自己写的）vs 实际（勾没勾）放在一起，差距自己显形——
+       不用他跑到记录台去翻，也不用他做任何自我评价。 */
+
+    function renderPrev() {
+      var box = document.getElementById('prevBox');
+      if (!box) return;
+
+      var t = Store.todayStr();
+      var prev = null;
+      allRecords().filter(hasContent).forEach(function (r) {
+        if (r.date < t && (!prev || r.date > prev.date)) prev = r;
+      });
+
+      if (!prev || !prev.anchors || (!prev.anchors.morning && !prev.anchors.evening)) {
+        box.style.display = 'none';
+        return;
+      }
+
+      box.innerHTML = '';
+      var head = el('div', 'prev-head');
+      head.appendChild(el('span', 'prev-title', '昨天你写的两条'));
+      head.appendChild(el('span', 'prev-date', mdOf(prev.date)));
+      box.appendChild(head);
+
+      [{ tag: '早', key: 'morning_done', data: prev.anchors.morning },
+       { tag: '晚', key: 'evening_done', data: prev.anchors.evening }].forEach(function (row) {
+        if (!row.data) return;
+        var line = el('div', 'prevrow' + (prev[row.key] ? ' hit' : ''));
+        line.appendChild(el('span', 'prev-tag', row.tag));
+        line.appendChild(el('span', 'prev-txt', row.data.text));
+        line.appendChild(el('span', 'prev-st', prev[row.key] ? '做到' : '未做'));
+        box.appendChild(line);
+      });
+
+      box.style.display = 'block';
     }
 
     function labelForDate(dateStr) {
@@ -461,6 +504,7 @@
       badge.style.display = 'inline-block';
 
       renderRecent();
+      renderPrev();
 
       currentRec = todayRecord();          // 今天的记录，没有则 null（示例模式取示例）
 
@@ -503,6 +547,7 @@
       document.getElementById('anchorCard').style.display = 'block';
       renderAnchors(anchors, currentRec);
       renderRecent();
+      renderPrev();
       finishDiag();
     });
 

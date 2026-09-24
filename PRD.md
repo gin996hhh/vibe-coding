@@ -123,9 +123,14 @@
 | 实体 | 字段 |
 |---|---|
 | `goal` | `id`、`content`（目标内容）、`created_at`、`status`（active / archived）、`three_rings`（JSON：三环拆解结果与可调项） |
-| `daily_record` | `date`（YYYY-MM-DD，唯一索引）、`morning_done`（bool）、`evening_done`（bool）、`state_score`（1–5）、`method_text`、`method_score`（1–5）、`hard_start_text` |
+| `daily_record` | `date`（YYYY-MM-DD，唯一索引）、`morning_done`（bool）、`evening_done`（bool）、`state_score`（1–5）、`method_text`（今天实际用的方法）、`stuck_text`（今天卡在哪一下）、`hard_start_text` |
 
 **说明**：MVP 不上服务端，所有数据存浏览器 localStorage。Day 15 接 CloudBase 之前，跨设备同步不在范围。
+
+> **变更记录（Day 8）**：原字段 `method_score`（1–5，「这个方法今天对上了吗」）已移除，换成 `stuck_text`。
+> 原因：要用户"公正地评价自己"，等于把标准交还给他想象——第一次做这件事的人手里根本没有"对上"的体感，
+> 只能拿想象中的理想状态当尺子，打出来必然是折扣。改成把"昨天他亲手写的锚点"和"今天勾的结果"并排摆出来，
+> 底下只问一句"今天卡在哪一下"：问事实，不问评价。
 
 ---
 

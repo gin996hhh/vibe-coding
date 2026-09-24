@@ -244,6 +244,84 @@ a { color: var(--sky); }
   margin-right: 6px;
 }
 
+/* ---------- 昨天的两条（今日页 · 缺口 A）
+   把"你昨天亲手写的"和"昨天做到没有"摆在锚点正下方。
+   不喊话、不判决——做到了给余光橙，没做到留灰。 ---------- */
+.prevbox {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+.prev-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.prev-title { font-size: 12px; color: var(--ink-3); }
+.prev-date  { font-size: 12px; color: var(--ink-3); }
+.prevrow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 14px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.prev-tag {
+  flex: none;
+  width: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.prev-txt { flex: 1; min-width: 0; }
+.prev-st  { flex: none; font-size: 12px; color: var(--ink-3); }
+.prevrow.hit .prev-st { color: var(--ember); }
+
+/* ---------- 预期 vs 实际（复盘页 · 缺口 C）
+   上排＝预期（他昨天亲手写的锚点），下排＝实际（今天勾没勾）。
+   产品只把两样摆在一起，差距自己显形；不问评价。 ---------- */
+.vsbox {
+  margin: 4px 0 0;
+  padding: 14px 16px;
+  background: var(--night-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+.vs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-bottom: 10px;
+}
+.vsrow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.vs-tag {
+  flex: none;
+  width: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.vs-txt { flex: 1; min-width: 0; color: var(--ink); }
+.vs-st  { flex: none; font-size: 12px; color: var(--ink-3); }
+.vsrow.hit .vs-st { color: var(--ember); }
+.vsrow.miss .vs-txt { color: var(--ink-3); }
+
 /* 记录台：一块里的一条锚点 */
 .rec-anchor {
   display: flex;

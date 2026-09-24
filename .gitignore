@@ -4,3 +4,6 @@
 
 # WorkBuddy 工作区记忆（含个人笔记与对话记忆，不入公开仓库）
 .workbuddy/
+
+# 内部设计文档（含团队内部材料，永不进公开仓库）
+docs-internal/

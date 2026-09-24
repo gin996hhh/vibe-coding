@@ -114,8 +114,8 @@ function makeRecord(date) {
     evening_done: false,
     ritual_count: null,   // 复盘时确认的仪式完成数 0-2（默认从当天记录带出，可改）
     state_score: null,    // 1-5
-    method_text: '',
-    method_score: null,   // 1-5
+    method_text: '',      // 今天实际用的方法（自己写，一句话）
+    stuck_text: '',       // 今天卡在哪一下（问事实，不问自评——缺口 C）
     hard_start_text: ''
   };
 }

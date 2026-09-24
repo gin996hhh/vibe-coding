@@ -227,7 +227,8 @@
         // 复盘
         var rs = [];
         if (d.review.state_score) rs.push('状态 ' + d.review.state_score + ' 格');
-        if (d.review.method_score) rs.push('方法对上 ' + d.review.method_score + ' 格');
+        if (d.review.method_text) rs.push('方法：' + d.review.method_text);
+        if (d.review.stuck_text) rs.push('卡在：' + d.review.stuck_text);
         if (d.review.method_text) rs.push('方法：' + d.review.method_text);
         if (d.review.hard_start_text) rs.push('硬启动：' + d.review.hard_start_text);
         if (rs.length) box.appendChild(el('div', 'rec-line', rs.join('　·　')));
