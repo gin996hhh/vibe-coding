@@ -420,6 +420,23 @@ button.ghost {
 }
 button.ghost:hover { background: var(--card-hi); }
 
+/* Day 11：按钮三态补齐——处理中必须是"看得出来的点不动" */
+button:disabled {
+  opacity: .62;
+  cursor: not-allowed;
+  background: var(--night-2);
+  color: var(--ink-3);
+}
+button:disabled:hover { background: var(--night-2); }
+
+/* Day 11：反馈提示淡入——让"生效了"能被眼睛抓住 */
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+.feedback-in { animation: fadein .28s ease-out; }
+.feedback-fail { color: var(--danger); }
+
 /* ---------- 量表（1–5 格 / 0–2 项） ---------- */
 
 .scale { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; }

@@ -263,27 +263,57 @@
       }
 
       /* ---------- 保存 ---------- */
+      /* ---------- 保存：操作前 → 处理中 → 成功/失败 ---------- */
+      var saving = false;                      // 处理中锁：连点只认第一次
+      var FAIL_MODE = location.search.indexOf('fail=1') > -1;  // 演示用失败通道
+
       document.getElementById('saveBtn').addEventListener('click', function () {
         var tip = document.getElementById('saveTip');
+        var btn = document.getElementById('saveBtn');
+        var msg = document.getElementById('savedMsg');
+        if (saving) return;                    // 处理中：不重复响应
+
         if (!picked.state) {
           tip.style.display = 'block';
           return;
         }
         tip.style.display = 'none';
 
-        var patch = {
-          state_score: picked.state,
-          ritual_count: picked.ritual === null ? null : picked.ritual,
-          method_text: document.getElementById('methodText').value.trim(),
-          stuck_text: document.getElementById('stuckText').value.trim(),
-          hard_start_text: document.getElementById('hardStartText').value.trim()
-        };
-        rec = Store.upsertRecord(date, patch);
+        /* 1. 处理中：按钮锁死，让用户一眼看出"正在存" */
+        saving = true;
+        var oldText = btn.textContent;
+        btn.textContent = '保存中…';
+        btn.disabled = true;
+        msg.style.display = 'none';
 
-        var msg = document.getElementById('savedMsg');
-        msg.style.display = 'block';
-        msg.textContent = '✅ 已记录（' + date + '）。明天这一格就有对照了。';
-        document.getElementById('saveBtn').textContent = '更新今天的复盘';
+        /* 2. 写入。放在延时里，是为了让"处理中"这个状态真的能被看见 */
+        setTimeout(function () {
+          try {
+            if (FAIL_MODE) throw new Error('存储演示失败');
+            var patch = {
+              state_score: picked.state,
+              ritual_count: picked.ritual === null ? null : picked.ritual,
+              method_text: document.getElementById('methodText').value.trim(),
+              stuck_text: document.getElementById('stuckText').value.trim(),
+              hard_start_text: document.getElementById('hardStartText').value.trim()
+            };
+            rec = Store.upsertRecord(date, patch);
+
+            /* 3a. 成功：绿字 + 淡入 */
+            msg.className = 'muted feedback-in';
+            msg.style.display = 'block';
+            msg.textContent = '✅ 已记录（' + date + '）。明天这一格就有对照了。';
+            btn.textContent = '更新今天的复盘';
+          } catch (e) {
+            /* 3b. 失败：红字，并告诉下一步怎么办 */
+            msg.className = 'muted feedback-in feedback-fail';
+            msg.style.display = 'block';
+            msg.textContent = '❌ 没存进去。你写的内容还在页面上——刷新一下再点一次；还是不行，就去记录台看看有没有。';
+            btn.textContent = oldText;
+          }
+          saving = false;
+          btn.disabled = false;
+        }, 350);
       });
     }
 
