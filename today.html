@@ -512,7 +512,7 @@
         // 体检做过了：直接给锚点
         var anchors = currentRec.anchors;
         if (!anchors || !anchors.morning || !anchors.evening) {
-          anchors = Today.buildAnchors(currentRec.checkin);
+          anchors = Today.buildAnchors(currentRec.checkin, currentRec.date || t, lastAnchorTexts(currentRec.date || t));
           currentRec = Store.upsertRecord(null, { anchors: anchors });
         }
         document.getElementById('anchorCard').style.display = 'block';
@@ -532,6 +532,19 @@
 
     /* ---------- 生成锚点 ---------- */
 
+    /** 找出指定日期之前最近一条有锚点的记录，返回它的早晚文字——供生成时避开重复 */
+    function lastAnchorTexts(dateStr) {
+      var list = allRecords().filter(function (r) {
+        return r.date < dateStr && r.anchors && r.anchors.morning && r.anchors.evening;
+      });
+      if (!list.length) return {};
+      list.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+      return {
+        morning: list[0].anchors.morning.text,
+        evening: list[0].anchors.evening.text
+      };
+    }
+
     document.getElementById('genBtn').addEventListener('click', function () {
       var tip = document.getElementById('checkinTip');
       if (picked.sleep === null || picked.energy === null || picked.mood === null) {
@@ -540,7 +553,7 @@
       }
       tip.style.display = 'none';
 
-      var anchors = Today.buildAnchors(picked);
+      var anchors = Today.buildAnchors(picked, t, lastAnchorTexts(t));
       currentRec = writePatch(currentRec, { checkin: picked, anchors: anchors });
 
       document.getElementById('checkinCard').style.display = 'none';
