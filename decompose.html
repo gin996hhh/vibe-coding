@@ -90,9 +90,9 @@
       document.getElementById('main').style.display = 'block';
       document.getElementById('goalText').textContent = goal.content;
 
-      // 三环：没有就生成；已有但结构不对就重建
+      // 三环：没有、结构不对、或模板版本旧了就重建（文案改版靠 v 字段触发）
       var rings = goal.three_rings;
-      if (!rings || !rings.state || !rings.frequency || !rings.method) {
+      if (!rings || rings.v !== Decompose.RINGS_VERSION || !rings.state || !rings.frequency || !rings.method) {
         rings = Decompose.buildRings(goal.content);
         goal.three_rings = rings;
         Store.saveGoal(goal);
@@ -122,7 +122,7 @@
 
         var adj = document.createElement('div');
         adj.className = 'ring-adjust';
-        adj.textContent = '可调项：' + ring.adjustable;
+        adj.textContent = '今天做这一件：' + ring.adjustable;
 
         div.appendChild(nameEl);
         div.appendChild(line);

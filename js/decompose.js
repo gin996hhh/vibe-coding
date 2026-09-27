@@ -9,23 +9,33 @@
  *   状态：你现在的底子撑不撑得住
  *   频率：一天做几次
  *   方法：具体怎么做
+ *
+ * 文案原则（Day 10 v3，反"喂养错位"）：
+ *   1. 目标名只在页顶出现一次，环内用"它"指代，不复读。
+ *   2. 不发同一个处方（如"23:30 睡"）——状态环改为判断机制：
+ *      精力撑不住时，休息本身就是今天的正确动作（heart2：透支硬练
+ *      效率极低、越练越沮丧；状态与精力管理本身是刻意练习对象）。
+ *   3. 每环 = 一个今天能做的动作 + 一句为什么（一行以内）。
+ *   版本号：改文案必须 +1，老用户浏览器里存的三环才会重建。
  */
 
-function buildRings(goalContent) {
-  var g = (goalContent || '这件事').trim();
+/** 当前三环模板版本 */
+var RINGS_VERSION = 3;
 
+function buildRings(goalContent) {
   return {
+    v: RINGS_VERSION,
     state: {
-      text: '状态是底座。状态不稳，方法再好也执行不下去——所以先确认你今晚几点睡。',
-      adjustable: '今晚 23:30 前睡'
+      text: '状态不稳时硬练，效率低，越练越沮丧。状态和精力管理本身是练习对象，不是背景。',
+      adjustable: '开练前先问一句——现在的精力撑得住它吗？撑不住，今天的这一件就是休息'
     },
     frequency: {
-      text: '一天做几次，比一次做多久更重要。先定一个你闭着眼都能完成的最小次数。',
-      adjustable: '每天 1 次，只求不断'
+      text: '它靠次数堆出来，不靠某一天猛冲——次数你自己定。',
+      adjustable: '今天只做 1 次最小动作，做完就算数'
     },
     method: {
-      text: '方法你自己找（不是产品发给你）。只挑一个今天就能做的，越小越好。',
-      adjustable: '把「' + g + '」缩小成 3 分钟内能做完的第一步'
+      text: '方法不从天降，从你的目标里长——只挑今天就能做的最小一件。',
+      adjustable: '缩小成 3 分钟内能做完的第一步，现在就做'
     }
   };
 }
@@ -39,5 +49,6 @@ var RING_LABELS = {
 
 window.Decompose = {
   buildRings: buildRings,
-  RING_LABELS: RING_LABELS
+  RING_LABELS: RING_LABELS,
+  RINGS_VERSION: RINGS_VERSION
 };
