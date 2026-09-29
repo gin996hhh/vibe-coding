@@ -86,6 +86,43 @@
     return days;
   }
 
+  /* ---------- 筛选（Day 12） ----------
+     只做判断，不碰 DOM，跟 buildDays 一样能用 node 单独跑。
+     完成状态四档：
+       all       —— 不过滤
+       some      —— 那天至少完成了一条
+       all_done  —— 那天有锚点，且全部完成
+       none      —— 那天一条都没完成
+     关键词 q 匹配范围：日期、星期、锚点文字、体检数值、复盘文字。 */
+
+  function dayText(d) {
+    var parts = [d.date, d.label, d.weekday];
+    (d.anchors || []).forEach(function (a) { parts.push(a.tag, a.text); });
+    if (d.checkin) parts.push('体检', d.checkin.sleep, d.checkin.energy, d.checkin.mood);
+    var r = d.review || {};
+    parts.push(r.method_text, r.stuck_text, r.hard_start_text, r.state_score);
+    return parts.join(' ').toLowerCase();
+  }
+
+  function matchDone(d, mode) {
+    if (!mode || mode === 'all') return true;
+    if (mode === 'some') return d.doneCount > 0;
+    if (mode === 'all_done') return d.total > 0 && d.doneCount === d.total;
+    if (mode === 'none') return d.doneCount === 0;
+    return true;
+  }
+
+  function filterDays(days, opt) {
+    opt = opt || {};
+    var q = String(opt.q === undefined || opt.q === null ? '' : opt.q).trim().toLowerCase();
+    var mode = opt.done || 'all';
+    return (days || []).filter(function (d) {
+      if (!matchDone(d, mode)) return false;
+      if (!q) return true;
+      return dayText(d).indexOf(q) > -1;
+    });
+  }
+
   /* ---------- 顶部三个数 ---------- */
 
   function summary(records, today) {
@@ -102,6 +139,7 @@
 
   window.Records = {
     buildDays: buildDays,
+    filterDays: filterDays,
     summary: summary,
     hasContent: hasContent,
     labelFor: labelFor,

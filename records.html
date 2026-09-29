@@ -81,6 +81,26 @@
             <p class="muted" style="margin-top:0">
               最近的在最上面。勾没勾、复盘写了没，都摆在明面上。
             </p>
+
+            <div class="filterbar">
+              <label class="f-field">
+                <span class="f-label">关键词</span>
+                <input id="qInput" class="f-input" type="search" autocomplete="off"
+                       placeholder="搜那天写了什么">
+              </label>
+              <label class="f-field">
+                <span class="f-label">完成状态</span>
+                <select id="doneSel" class="f-sel">
+                  <option value="all">全部</option>
+                  <option value="some">有完成</option>
+                  <option value="all_done">全完成</option>
+                  <option value="none">未完成</option>
+                </select>
+              </label>
+              <button id="clearBtn" class="f-btn" type="button" disabled>清空</button>
+            </div>
+            <p class="muted" id="filterInfo" style="margin-top:0"></p>
+
             <div class="reclist" id="dayList"></div>
           </div>
         </div>
@@ -176,23 +196,19 @@
 
     /* ---------- 每天一块 ---------- */
 
-    function renderDays() {
+    function renderDays(days, total) {
       var listEl = document.getElementById('dayList');
       listEl.innerHTML = '';
 
-      var days = Records.buildDays(allRecords(), today);
-      dayCount = days.length;
-
       if (!days.length) {
         var e = el('div', 'state');
-        e.appendChild(el('div', 'state-title', '还没有记录'));
-        e.appendChild(el('p', null, '今天是第一天。做完体检，这里就会长出一条。'));
+        e.appendChild(el('div', 'state-title', total ? '没有找到相关内容' : '还没有记录'));
+        e.appendChild(el('p', null, total
+          ? '换个词试试，或者把完成状态调回「全部」。'
+          : '今天是第一天。做完体检，这里就会长出一条。'));
         listEl.appendChild(e);
-        document.getElementById('dayChip').textContent = '0 天';
         return;
       }
-
-      document.getElementById('dayChip').textContent = days.length + ' 天';
 
       days.forEach(function (d) {
         var box = el('div', 'rec rec-day' + (d.date === today ? ' today' : ''));
@@ -241,6 +257,53 @@
       });
     }
 
+    /* ---------- 筛选（Day 12）----------
+       关键词 + 完成状态，两种情况叠加（同时满足才算命中）。
+       判断在 js/records.js 里（纯计算，可 node 直跑），这里只管界面。
+       三种结果：有结果（缩到命中项）/ 无结果（"没有找到相关内容"）/ 清空（恢复完整列表）。 */
+
+    var filterQ = '';
+    var filterDone = 'all';
+    var filterBound = false;
+
+    function refreshDays() {
+      var all = Records.buildDays(allRecords(), today);
+      var shown = Records.filterDays(all, { q: filterQ, done: filterDone });
+      var filtering = !!filterQ || filterDone !== 'all';
+
+      dayCount = all.length;   // 诊断条说的是实际记录天数，不跟着筛选变
+
+      document.getElementById('dayChip').textContent =
+        filtering ? (shown.length + ' / ' + all.length + ' 天') : (all.length + ' 天');
+
+      document.getElementById('filterInfo').textContent = !filtering
+        ? ''
+        : (shown.length
+            ? '共 ' + all.length + ' 天，命中 ' + shown.length + ' 天。'
+            : '共 ' + all.length + ' 天，一个都没命中。');
+
+      document.getElementById('clearBtn').disabled = !filtering;
+
+      renderDays(shown, all.length);
+    }
+
+    function bindFilter() {
+      var qi = document.getElementById('qInput');
+      var ds = document.getElementById('doneSel');
+      var cb = document.getElementById('clearBtn');
+
+      qi.addEventListener('input', function () { filterQ = qi.value; refreshDays(); });
+      ds.addEventListener('change', function () { filterDone = ds.value; refreshDays(); });
+      cb.addEventListener('click', function () {
+        filterQ = '';
+        filterDone = 'all';
+        qi.value = '';
+        ds.value = 'all';
+        refreshDays();
+        qi.focus();
+      });
+    }
+
     /* ---------- 主流程 ---------- */
 
     function render() {
@@ -281,6 +344,8 @@
       renderState(null);
       document.getElementById('content').style.display = 'block';
 
+      if (!filterBound) { bindFilter(); filterBound = true; }
+
       if (MOCK) showMockBadge();
 
       var badge = document.getElementById('goalBadge');
@@ -303,7 +368,7 @@
             sum.recordedDays + ' 天留下了记录（占 ' + Math.round(sum.recordedDays / sum.spanDays * 100) + '%）。'
           : '';
 
-      renderDays();
+      refreshDays();
       finishDiag();
     }
 

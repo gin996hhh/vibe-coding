@@ -535,3 +535,44 @@ code {
 
 /* 诊断条：调试读数，默认隐藏——用户不该看到"仪器读数"；地址栏加 ?debug=1 才显示 */
 #diag { display: none; margin-top: 26px; font-size: 12px; color: var(--ink-3); text-align: center; line-height: 1.8; }
+
+/* ---------- 筛选栏（Day 12）----------
+   按 frontend-guidelines 写：色值全取 :root，字号 16px，间距只取 8/12/16/22 档，
+   输入框有可见 focus，窄屏整行换行，触控目标 ≥ 40px。 */
+.filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+.f-field { display: flex; flex-direction: column; gap: 8px; }
+.f-label { font-size: 13px; color: var(--ink-3); }
+.f-input,
+.f-sel {
+  font-family: inherit;
+  font-size: 16px;                 /* 不小于 16px：守「正文 16px」，也免得窄屏被浏览器自动缩放 */
+  color: var(--ink);
+  background: var(--night-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  min-height: 40px;                /* 触控目标 */
+}
+.f-input { min-width: 200px; }
+.f-sel { min-width: 120px; }
+.f-input::placeholder { color: var(--ink-3); }
+.f-input:focus,
+.f-sel:focus {
+  outline: none;
+  border-color: var(--sky);
+  box-shadow: 0 0 0 2px rgba(110, 155, 214, .35);   /* 可见的 focus */
+}
+.f-btn { min-height: 40px; background: var(--card-hi); color: var(--ink-2); }
+.filterbar .f-btn:hover:not(:disabled) { background: var(--line); }
+
+/* 窄屏：整行换行，不许横向滚动 */
+@media (max-width: 400px) {
+  .filterbar { flex-direction: column; align-items: stretch; }
+  .f-input, .f-sel { width: 100%; min-width: 0; }
+}
