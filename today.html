@@ -553,6 +553,7 @@
       }
       tip.style.display = 'none';
 
+      var t = Store.todayStr();
       var anchors = Today.buildAnchors(picked, t, lastAnchorTexts(t));
       currentRec = writePatch(currentRec, { checkin: picked, anchors: anchors });
 
