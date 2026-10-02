@@ -22,6 +22,29 @@
     <h1>锚点</h1>
     <p class="muted">凡有结果必有路径。</p>
 
+    <!-- Day 15 云端入口：放在最顶端，不用到处找 -->
+    <div class="card" id="cloudCard">
+      <h2 style="margin-top:0">已经跑到云上的东西</h2>
+      <p class="muted">
+        本地这版数据存在你自己浏览器里，换台设备就没了。
+        下面这份是同一个页面，任何设备打开都在。
+      </p>
+      <p>
+        <a href="https://anchor-victor-1a2b3c4d-d5fmr5rn115087c8.webapps.tcloudbase.com" target="_blank" rel="noopener">
+          <button class="ghost">打开线上版本</button>
+        </a>
+        <a href="https://victor-1a2b3c4d-d5fmr5rn115087c8-1499478804.ap-shanghai.app.tcloudbase.com/api/health" target="_blank" rel="noopener">
+          <button class="ghost">接口自检</button>
+        </a>
+      </p>
+      <p class="muted" style="font-size:12px">
+        「接口自检」打开应该看到一行 JSON：<code>{"ok":true,"data":{"service":"anchor"}}</code>。看到就等于前后端链路是通的（Day 15）。
+      </p>
+      <p class="muted" style="font-size:12px;margin-bottom:0">
+        Day 17 会把这几页从「读本地」改成「读接口」，届时本地和线上是同一份数据。这一步还没做。
+      </p>
+    </div>
+
     <!-- 已有目标时显示；没有时隐藏 -->
     <div class="card" id="goalCard" style="display:none">
       <h2 style="margin-top:0">当前目标</h2>
@@ -46,29 +69,6 @@
       <p class="tip" id="errTip" style="display:none">先写一句你想做的事。</p>
       <p style="margin-bottom:0">
         <button id="goBtn">拆解</button>
-      </p>
-    </div>
-
-    <!-- Day 15 起：已经跑到云上的东西。放在首页底部，不打扰「写目标」这条主线 -->
-    <div class="card" id="cloudCard">
-      <h2 style="margin-top:0">云上的那一份</h2>
-      <p class="muted">
-        本地这版数据存在你自己浏览器里，换台设备就没了。
-        下面这份是 Day 15 部署到云端的同一个页面，任何设备打开都在。
-      </p>
-      <p>
-        <a href="https://anchor-victor-1a2b3c4d-d5fmr5rn115087c8.webapps.tcloudbase.com" target="_blank" rel="noopener">
-          <button class="ghost">打开线上版本</button>
-        </a>
-        <a href="https://victor-1a2b3c4d-d5fmr5rn115087c8-1499478804.ap-shanghai.app.tcloudbase.com/api/health" target="_blank" rel="noopener">
-          <button class="ghost">接口自检</button>
-        </a>
-      </p>
-      <p class="muted" style="font-size:12px">
-        「接口自检」打开应该看到一行 JSON，里面有 <code>service: "anchor"</code>。看到就等于前后端链路是通的。
-      </p>
-      <p class="muted" style="font-size:12px;margin-bottom:0">
-        Day 17 会把这几页从「读本地」改成「读接口」，到时候本地和线上就是同一份数据。这一步还没做。
       </p>
     </div>
 
