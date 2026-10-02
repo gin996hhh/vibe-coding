@@ -11,6 +11,7 @@
 
 var KEY_GOAL = 'anchor.goal';
 var KEY_RECORDS = 'anchor.records';
+var KEY_PROTOCOLS = 'anchor.protocols';   // 操作手册勾选：{ "YYYY-MM-DD": ["P-1-01", ...] }
 
 /* ---------- 工具：本地日期 YYYY-MM-DD ---------- */
 
@@ -148,11 +149,27 @@ function upsertRecord(date, patch) {
   return found;
 }
 
+/* ---------- 操作手册勾选 anchor.protocols ---------- */
+
+/** 全部勾选状态：{ "日期": ["P-1-01", ...] } */
+function getProtocols() {
+  return readJSON(KEY_PROTOCOLS, {});
+}
+
+/** 写某一天勾了哪几条 */
+function setProtocolDay(date, refs) {
+  var all = getProtocols();
+  all[date || todayStr()] = refs || [];
+  writeJSON(KEY_PROTOCOLS, all);
+  return all;
+}
+
 /* ---------- 清空（PRD 第七章：localStorage 被清后的兜底） ---------- */
 
 function clearAll() {
   localStorage.removeItem(KEY_GOAL);
   localStorage.removeItem(KEY_RECORDS);
+  localStorage.removeItem(KEY_PROTOCOLS);
 }
 
 /* ---------- 暴露给页面 ---------- */
@@ -169,5 +186,7 @@ window.Store = {
   getRecord: getRecord,
   makeRecord: makeRecord,
   upsertRecord: upsertRecord,
+  getProtocols: getProtocols,
+  setProtocolDay: setProtocolDay,
   clearAll: clearAll
 };

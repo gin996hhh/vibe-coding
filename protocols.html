@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>操作手册 · 锚点</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* 兜底：任何一段脚本出错，都写进页面里，不让人对着白屏猜 */
+    window.__err = [];
+    window.onerror = function (msg, src, line) {
+      window.__err.push(String(msg) + '（' + String(src).split('/').pop() + ' 第' + line + '行）');
+      var box = document.getElementById('errBox');
+      if (box) { box.style.display = 'block'; box.textContent = '⚠️ 页面报错：' + window.__err.join(' ｜ '); }
+    };
+  </script>
+</head>
+<body>
+  <div class="wrap wide">
+
+    <pre id="errBox"></pre>
+
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="today.html">今日</a>
+      <a href="records.html">记录台</a>
+      <a href="reflect.html">复盘</a>
+      <a href="growth.html">成长</a>
+      <a href="protocols.html" class="active">操作手册</a>
+    </nav>
+
+    <header class="page-head">
+      <div>
+        <h1>操作手册</h1>
+        <p class="muted" style="margin:4px 0 0">
+          手册不是给你读的，是给你照着做的。动作能勾「做了没做」；底下那句「为什么管用」只是参考，不勾、不算分。
+        </p>
+      </div>
+      <div class="head-side">
+        <span class="badge" id="dayBadge">—</span>
+      </div>
+    </header>
+
+    <!-- 第一问：各项目现在什么情况 -->
+    <section class="card" style="margin-top:16px">
+      <div class="card-head"><h2>各项目现在什么情况</h2></div>
+      <p class="muted" style="margin-top:0">
+        左边是今天勾了几条，右边是近 7 天的平均完成度。哪根条最短，就先补哪根。
+      </p>
+      <div id="statList"></div>
+    </section>
+
+    <!-- 第二问：那今天做哪一条 -->
+    <section class="card" style="margin-top:16px">
+      <div class="card-head"><h2>今天就加这一条</h2></div>
+      <p class="muted" style="margin-top:0">只推一条。多了等于没推——饭要一口一口吃。</p>
+      <div id="suggestBox"></div>
+    </section>
+
+    <!-- 第三问：具体怎么做（47 条全在这） -->
+    <section class="card" style="margin-top:16px">
+      <div class="card-head"><h2>47 条动作清单</h2></div>
+      <p class="muted" style="margin-top:0">
+        左边勾选今天做没做，动作下面折叠着它的机制——不确定要不要做的时候，展开看看它凭什么管用。
+      </p>
+      <div id="list"></div>
+    </section>
+
+    <p class="muted" style="margin-top:20px;font-size:13px">
+      编号规则：P-章-条，如 P-1-03 = 第 1 章（睡眠）第 3 条。<br>
+      内容基于 Huberman《Protocols: An Operating Manual for the Human Body》重述，非原文引用；英文原文只在本地归档，不进公开仓库。
+    </p>
+
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/protocols-data.js"></script>
+  <script src="js/protocols.js"></script>
+  <script>
+  (function () {
+    var E = window.ProtocolEngine;
+    var today = window.Store.todayStr();
+    var recent = E.recentDays(today, 7);
+    var state = window.Store.getProtocols() || {};
+
+    document.getElementById('dayBadge').textContent = today;
+
+    /* ---------- 画：各项目情况 ---------- */
+    function renderStats() {
+      var rows = E.stats(state, today, recent);
+      var html = '';
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        html += '<div style="margin:10px 0">'
+          + '<div style="display:flex;justify-content:space-between;font-size:14px">'
+          + '<span>第' + r.ch + '章 · ' + r.chTitle + '</span>'
+          + '<span class="muted">今天 ' + r.todayDone + '/' + r.total + '　近7天 ' + r.avg + '%</span>'
+          + '</div>'
+          + '<div style="height:8px;border-radius:6px;background:var(--card-hi);margin-top:4px;overflow:hidden">'
+          + '<div style="height:100%;width:' + r.avg + '%;background:var(--ember);border-radius:6px"></div>'
+          + '</div></div>';
+      }
+      document.getElementById('statList').innerHTML = html;
+    }
+
+    /* ---------- 画：今天建议的那一条 ---------- */
+    function renderSuggest() {
+      var box = document.getElementById('suggestBox');
+      var s = E.suggest(state, today);
+      if (!s) {
+        box.innerHTML = '<p><span class="badge on">47 条今天全做了</span></p>'
+          + '<p class="muted">没有要补的了。明天见。</p>';
+        return;
+      }
+      var kindTag = s.kind === 'warn'
+        ? '<span class="badge" style="margin-left:6px">这条是"别做"</span>' : '';
+      box.innerHTML =
+        '<p style="margin:0 0 6px"><strong>' + s.ref + '　' + s.title + '</strong>' + kindTag + '</p>'
+        + '<p class="muted" style="margin:0 0 10px">' + s.chTitle + ' 第 ' + s.no + ' 条</p>'
+        + '<p style="margin:0 0 6px">' + s.action + '</p>'
+        + '<p class="muted" style="margin:0 0 12px">为什么先推它：' + s.because + '</p>'
+        + '<button class="f-btn" id="btnDone" style="border:none;background:var(--sky-deep);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer">'
+        + '这条今天做了</button>'
+        + '<details style="margin-top:12px"><summary class="muted" style="cursor:pointer">为什么管用（参考）</summary>'
+        + '<p class="muted" style="margin-top:8px">' + s.mechanism + '</p></details>';
+
+      document.getElementById('btnDone').onclick = function () {
+        var arr = E.toggle(state, today, s.ref);
+        state[today] = arr;
+        window.Store.setProtocolDay(today, arr);
+        renderStats(); renderSuggest(); renderList();
+      };
+    }
+
+    /* ---------- 画：47 条清单 ---------- */
+    function renderList() {
+      var chs = E.chapters();
+      var done = state[today] || [];
+      var html = '';
+      for (var i = 0; i < chs.length; i++) {
+        var c = chs[i];
+        html += '<h2 style="margin:18px 0 8px">第' + c.ch + '章 · ' + c.chTitle
+          + ' <span class="muted" style="font-size:13px">（' + c.items.length + ' 条）</span></h2>';
+        for (var j = 0; j < c.items.length; j++) {
+          var e = c.items[j];
+          var on = done.indexOf(e.ref) !== -1;
+          html += '<div class="item' + (on ? ' done' : '') + '" style="padding:10px 0;border-top:1px solid var(--line)">'
+            + '<label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">'
+            + '<input type="checkbox" data-ref="' + e.ref + '"' + (on ? ' checked' : '') + ' style="margin-top:5px">'
+            + '<span><strong>' + e.ref + '　' + e.title + '</strong>'
+            + (e.kind === 'warn' ? ' <span class="badge">别做</span>' : '')
+            + '<br><span class="muted">' + e.action + '</span></span>'
+            + '</label>'
+            + '<details style="margin:6px 0 0 26px"><summary class="muted" style="cursor:pointer;font-size:13px">为什么管用（参考）</summary>'
+            + '<p class="muted" style="margin:6px 0 0;font-size:13px">' + e.mechanism + '</p></details>'
+            + '</div>';
+        }
+      }
+      document.getElementById('list').innerHTML = html;
+
+      var boxes = document.querySelectorAll('#list input[type=checkbox]');
+      for (var k = 0; k < boxes.length; k++) {
+        boxes[k].onchange = function () {
+          var arr = E.toggle(state, today, this.getAttribute('data-ref'));
+          state[today] = arr;
+          window.Store.setProtocolDay(today, arr);
+          renderStats(); renderSuggest(); renderList();
+        };
+      }
+    }
+
+    renderStats();
+    renderSuggest();
+    renderList();
+  })();
+  </script>
+</body>
+</html>
