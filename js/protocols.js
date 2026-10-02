@@ -160,6 +160,76 @@
     return out;
   }
 
+  /* ---------- 6. 关键词检索 ----------
+     想得起来一个词（"喝水""动一动""咖啡"），但记不住它在第几章，就搜它。
+     搜的是：标题 / 动作 / 机制 / 章名 / 编号。中英文都能搜，忽略大小写和首尾空格。
+     多个词用空格分开，全部命中才算（越搜越窄）。 */
+
+  function norm(s) {
+    return String(s || '').toLowerCase().trim();
+  }
+
+  function haystack(e) {
+    return norm(e.title + ' ' + e.action + ' ' + e.mechanism + ' ' + e.chTitle + ' ' + e.ref);
+  }
+
+  /* 口语词 → 原文里实际用的词。
+     人说"动一动""起床"，原文写的是"活动""醒来"，不映射就搜不到。 */
+  var ALIAS = {
+    '动一动': '活动 运动 走 拉伸 散步',
+    '活动一下': '活动 运动 走',
+    '起床': '醒来 醒后 早上 起床',
+    '早起': '醒来 早上 天光',
+    '喝水': '水 水分 补水 喝',
+    '睡觉': '睡眠 入睡 睡',
+    '睡不着': '入睡 失眠 睡眠',
+    '锻炼': '运动 训练 活动',
+    '减肥': '体重 脂肪 代谢 热量',
+    '提神': '咖啡因 咖啡 清醒 警觉',
+    '眼睛': '眼 视觉 视网膜',
+    '晒太阳': '阳光 天光 光照 亮光',
+    '心情': '情绪 压力 心情 焦虑',
+    '记不住': '记忆 学习 巩固',
+    '学东西': '学习 记忆 技能'
+  };
+
+  function termMatch(hay, word) {
+    if (hay.indexOf(word) !== -1) return true;
+    var alias = ALIAS[word];
+    if (!alias) return false;
+    var alts = alias.split(/\s+/);
+    for (var i = 0; i < alts.length; i++) {
+      if (hay.indexOf(alts[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function search(list, keyword) {
+    var words = norm(keyword).split(/\s+/).filter(function (w) { return w.length > 0; });
+    if (!words.length) return list.slice();
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      var hay = haystack(e);
+      var all = true;
+      var score = 0;
+      for (var j = 0; j < words.length; j++) {
+        if (!termMatch(hay, words[j])) { all = false; break; }
+        // 标题里命中最相关（3），动作次之（2），机制里顺带提一句最弱（1）
+        if (termMatch(norm(e.title), words[j])) score += 3;
+        else if (termMatch(norm(e.action), words[j])) score += 2;
+        else score += 1;
+      }
+      if (all) out.push({ e: e, s: score });
+    }
+    // 分高的在前；同分按编号排，保证每次搜出来顺序一样
+    out.sort(function (a, b) {
+      if (a.s !== b.s) return b.s - a.s;
+      return a.e.ref < b.e.ref ? -1 : (a.e.ref > b.e.ref ? 1 : 0);
+    });
+    return out.map(function (x) { return x.e; });
+  }
+
   root.ProtocolEngine = {
     entries: ENTRIES,
     chapters: chapters,
@@ -168,6 +238,7 @@
     toggle: toggle,
     stats: stats,
     suggest: suggest,
-    recentDays: recentDays
+    recentDays: recentDays,
+    search: search
   };
 })(typeof window !== 'undefined' ? window : global);

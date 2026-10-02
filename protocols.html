@@ -64,6 +64,14 @@
         左边勾选今天做没做，动作下面折叠着它的机制——不确定要不要做的时候，展开看看它凭什么管用。
       </p>
 
+      <!-- 关键词检索：想得起来一个词（"喝水""动一动"），但记不住它在第几章 -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px">
+        <input type="search" id="kwInput" class="f-input" autocomplete="off"
+               placeholder="搜一个词，比如：喝水 / 动一动 / 咖啡 / 睡不着"
+               style="flex:1;min-width:200px">
+        <button class="f-btn" id="kwClear" type="button" disabled>清空</button>
+      </div>
+
       <!-- 章节快跳：今天睡眠不好，点一下「睡眠」就直接到那儿，不用往下翻 -->
       <div id="chBar" style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px"></div>
       <p class="muted" id="focusInfo" style="margin-top:0"></p>
@@ -127,6 +135,26 @@
         var el = document.getElementById('focusInfo');
         if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+    }
+
+    /* ---------- 关键词检索 ---------- */
+    var keyword = '';
+    var kwBound = false;
+
+    function bindKeyword() {
+      var inp = document.getElementById('kwInput');
+      var clr = document.getElementById('kwClear');
+      inp.addEventListener('input', function () {
+        keyword = inp.value;
+        renderList();
+      });
+      clr.addEventListener('click', function () {
+        keyword = '';
+        inp.value = '';
+        renderList();
+        inp.focus();
+      });
+      kwBound = true;
     }
 
     function bindFocus() {
@@ -214,12 +242,17 @@
       }
 
       var html = '';
+      var hits = 0;
       for (var i = 0; i < chs.length; i++) {
         var c = chs[i];
+        // 章节筛选和关键词是叠加的：先锁定章，再在章里搜
+        var items = keyword ? E.search(c.items, keyword) : c.items;
+        if (!items.length) continue;
+        hits += items.length;
         html += '<h2 style="margin:18px 0 8px">第' + c.ch + '章 · ' + c.chTitle
-          + ' <span class="muted" style="font-size:13px">（' + c.items.length + ' 条）</span></h2>';
-        for (var j = 0; j < c.items.length; j++) {
-          var e = c.items[j];
+          + ' <span class="muted" style="font-size:13px">（' + items.length + ' 条）</span></h2>';
+        for (var j = 0; j < items.length; j++) {
+          var e = items[j];
           var on = done.indexOf(e.ref) !== -1;
           html += '<div class="item' + (on ? ' done' : '') + '" style="padding:10px 0;border-top:1px solid var(--line)">'
             + '<label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">'
@@ -233,7 +266,23 @@
             + '</div>';
         }
       }
+      // 搜完说清楚命中多少；一个都没有就直说，别让人对着空列表猜
+      var kwLine = keyword
+        ? (hits ? '　·　搜「' + keyword + '」命中 ' + hits + ' 条' : '')
+        : '';
+      if (keyword && !hits) {
+        html = '<div class="state"><div class="state-title">没搜到「' + keyword + '」</div>'
+          + '<p>换个说法试试，比如「动一动」「睡不着」「晒太阳」。也可以只搜一个字。</p></div>';
+      }
+
       document.getElementById('list').innerHTML = html;
+
+      var clr = document.getElementById('kwClear');
+      if (clr) clr.disabled = !keyword;
+      if (focusCh && hits && kwLine) {
+        var fi = document.getElementById('focusInfo');
+        if (fi && fi.innerHTML.indexOf('命中') === -1) fi.innerHTML += kwLine;
+      }
 
       var back = document.getElementById('backAll');
       if (back) {
@@ -252,6 +301,7 @@
     }
 
     renderChips();
+    if (!kwBound) bindKeyword();
     bindFocus();
     renderStats();
     renderSuggest();
