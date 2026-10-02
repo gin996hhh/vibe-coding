@@ -576,3 +576,42 @@ code {
   .filterbar { flex-direction: column; align-items: stretch; }
   .f-input, .f-sel { width: 100%; min-width: 0; }
 }
+
+/* ---------- 回收站（Day 16 收尾，Victor 要求：删掉不等于消失） ----------
+   色值全取 :root，不写死；触控目标按最小 32px 走，窄屏整行换行。 */
+.rec-del {
+  margin-left: auto;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--ink-3);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.rec-del:hover { color: var(--danger); border-color: var(--danger); }
+
+.trash-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.trash-item:last-child { border-bottom: none; }
+.trash-item .t-label { color: var(--ink); }
+.trash-item .t-when { color: var(--ink-3); font-size: 12px; }
+.trash-item .t-acts { margin-left: auto; display: flex; gap: 8px; }
+.trash-item .t-acts button {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.trash-item .t-acts button:hover { color: var(--sky); border-color: var(--sky); }
+.trash-item .t-acts button.del:hover { color: var(--danger); border-color: var(--danger); }

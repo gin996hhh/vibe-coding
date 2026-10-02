@@ -12,6 +12,7 @@
 var KEY_GOAL = 'anchor.goal';
 var KEY_RECORDS = 'anchor.records';
 var KEY_PROTOCOLS = 'anchor.protocols';   // 操作手册勾选：{ "YYYY-MM-DD": ["P-1-01", ...] }
+var KEY_TRASH = 'anchor.trash';           // 回收站：删掉的东西先来这里，能还原、也能彻底扔
 
 /* ---------- 工具：本地日期 YYYY-MM-DD ---------- */
 
@@ -164,6 +165,113 @@ function setProtocolDay(date, refs) {
   return all;
 }
 
+/* ---------- 回收站 anchor.trash ----------
+   设计原则（Victor 2026-10-02）：删掉不等于消失。
+   改目标、清记录都会先进这里，想清楚了再决定要不要彻底扔。
+   回收站本身不进 clearAll()——它是最后一道保险。 */
+
+/** 回收站里的东西长这样：
+ *  { id, kind:'record'|'goal', label, deleted_at:'YYYY-MM-DD', data:原物件 } */
+function getTrash() {
+  return readJSON(KEY_TRASH, []);
+}
+
+function saveTrash(list) {
+  writeJSON(KEY_TRASH, list);
+}
+
+function newTrashId() {
+  return 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+}
+
+/** 丢进回收站 */
+function addTrash(kind, label, data) {
+  var list = getTrash();
+  var item = { id: newTrashId(), kind: kind, label: label, deleted_at: todayStr(), data: data };
+  list.unshift(item);
+  saveTrash(list);
+  return item;
+}
+
+/** 取出（只是从回收站里拿走，还原动作由调用方决定） */
+function restoreTrash(id) {
+  var list = getTrash();
+  var rest = [];
+  var hit = null;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].id === id) hit = list[i];
+    else rest.push(list[i]);
+  }
+  if (!hit) return null;
+  saveTrash(rest);
+  return hit;
+}
+
+/** 彻底扔掉 */
+function removeTrash(id) {
+  var list = getTrash();
+  var rest = [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].id !== id) rest.push(list[i]);
+  }
+  saveTrash(rest);
+}
+
+function clearTrash() {
+  saveTrash([]);
+}
+
+/** 删掉某一天的记录：从记录里移走，进回收站 */
+function deleteRecord(date) {
+  var list = getRecords();
+  var rest = [];
+  var hit = null;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].date === date) hit = list[i];
+    else rest.push(list[i]);
+  }
+  if (!hit) return null;
+  saveRecords(rest);
+  addTrash('record', hit.date, hit);
+  return hit;
+}
+
+/** 清空全部记录：一条不留，但全在回收站里，随时能还原 */
+function trashAllRecords() {
+  var list = getRecords();
+  if (!list.length) return 0;
+  for (var i = 0; i < list.length; i++) {
+    addTrash('record', list[i].date, list[i]);
+  }
+  saveRecords([]);
+  return list.length;
+}
+
+/** 从回收站还原一条记录。那天已经有新记录了就不覆盖，把原件放回回收站并返回 null */
+function restoreRecord(id) {
+  var item = restoreTrash(id);
+  if (!item || item.kind !== 'record') return null;
+  var list = getRecords();
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].date === item.data.date) {
+      saveTrash(getTrash().concat([item]));   // 还原不了，放回去
+      return null;
+    }
+  }
+  list.push(item.data);
+  saveRecords(list);
+  return item.data;
+}
+
+/** 换目标时，旧目标进回收站（不是直接消失） */
+function archiveGoal() {
+  var old = getGoal();
+  if (!old) return null;
+  addTrash('goal', old.content || '（没写内容的目标）', old);
+  clearGoal();
+  return old;
+}
+
 /* ---------- 清空（PRD 第七章：localStorage 被清后的兜底） ---------- */
 
 function clearAll() {
@@ -188,5 +296,14 @@ window.Store = {
   upsertRecord: upsertRecord,
   getProtocols: getProtocols,
   setProtocolDay: setProtocolDay,
+  getTrash: getTrash,
+  addTrash: addTrash,
+  restoreTrash: restoreTrash,
+  removeTrash: removeTrash,
+  clearTrash: clearTrash,
+  deleteRecord: deleteRecord,
+  trashAllRecords: trashAllRecords,
+  restoreRecord: restoreRecord,
+  archiveGoal: archiveGoal,
   clearAll: clearAll
 };

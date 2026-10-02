@@ -12,3 +12,4 @@ docs-internal/
 
 # 静态托管上传目录（构建产物，不入库）
 dist/
+_p47.json

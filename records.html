@@ -67,6 +67,21 @@
             <p class="muted" id="ratioLine" style="margin-bottom:0"></p>
           </div>
 
+          <div class="card" id="trashCard">
+            <div class="card-head">
+              <h2>回收站</h2>
+              <span class="count-chip" id="trashChip"></span>
+            </div>
+            <p class="muted" style="margin-top:0">
+              删掉的东西先放这儿，不是消失了。想要还能原样拿回来。
+            </p>
+            <div id="trashList"></div>
+            <p style="margin:12px 0 0">
+              <button id="trashAllBtn" type="button">把全部记录移入回收站</button>
+              <button id="trashClearBtn" class="ghost" type="button" disabled>彻底清空回收站</button>
+            </p>
+          </div>
+
           <div class="card">
             <p class="muted" style="margin-top:0">接着做今天的那一项。</p>
             <a href="today.html"><button>去今日</button></a>
@@ -172,6 +187,10 @@
         b.addEventListener('click', function () { location.href = 'index.html'; });
         act.appendChild(b);
         box.appendChild(act);
+      } else if (kind === 'cleared') {
+        box = el('div', 'state');
+        box.appendChild(el('div', 'state-title', '记录已经清空'));
+        box.appendChild(el('p', null, '删掉的天数都在左栏回收站里，想要随时原样拿回来。'));
       } else if (kind === 'error') {
         box = el('div', 'state error');
         box.appendChild(el('div', 'state-title', '读不到本地数据'));
@@ -224,6 +243,20 @@
           });
         }
         head.appendChild(dots);
+
+        // 删除：这条进回收站，不是消失（示例数据不给删，它本来就不在本地）
+        if (!MOCK) {
+          var delBtn = el('button', 'rec-del', '删除');
+          delBtn.title = '这一天进回收站，想拿回来还能拿回来';
+          delBtn.setAttribute('data-date', d.date);
+          delBtn.addEventListener('click', function () {
+            var dt = this.getAttribute('data-date');
+            if (!window.confirm('把 ' + dt + ' 这一天放进回收站？\n回收站里还能还原。')) return;
+            Store.deleteRecord(dt);
+            render();
+          });
+          head.appendChild(delBtn);
+        }
         box.appendChild(head);
 
         // 那天的两条锚点
@@ -256,6 +289,81 @@
 
         listEl.appendChild(box);
       });
+    }
+
+    /* ---------- 回收站 ----------
+       删掉的每一天都躺在这里：能原样还原，也能彻底扔。
+       示例数据不进回收站（它本来就不在浏览器里），所以示例模式下整块隐藏。 */
+
+    var trashBound = false;
+
+    function renderTrash() {
+      var card = document.getElementById('trashCard');
+      var listEl = document.getElementById('trashList');
+      var chip = document.getElementById('trashChip');
+      var clearBtn = document.getElementById('trashClearBtn');
+
+      if (MOCK) { card.style.display = 'none'; return; }
+      card.style.display = '';
+
+      var list = Store.getTrash() || [];
+      chip.textContent = list.length ? list.length + ' 项' : '空';
+      clearBtn.disabled = !list.length;
+      listEl.innerHTML = '';
+
+      if (!list.length) {
+        listEl.appendChild(el('p', 'muted', '还没有删掉任何东西。'));
+        return;
+      }
+
+      list.forEach(function (item) {
+        var row = el('div', 'trash-item');
+        row.appendChild(el('span', 't-label',
+          (item.kind === 'goal' ? '目标 · ' : '') + item.label));
+        row.appendChild(el('span', 't-when', '删于 ' + item.deleted_at));
+
+        var acts = el('div', 't-acts');
+        var back = el('button', null, '还原');
+        back.addEventListener('click', function () {
+          if (item.kind === 'record') {
+            var got = Store.restoreRecord(item.id);
+            if (!got) {
+              window.alert('这一天已经有新记录了，没法覆盖。\n要还原的话，先把现在的这条删掉。');
+              renderTrash();
+              return;
+            }
+          } else {
+            Store.restoreTrash(item.id);   // 目标暂不自动覆盖，取出来即可
+          }
+          render();
+        });
+        var gone = el('button', 'del', '彻底删除');
+        gone.addEventListener('click', function () {
+          if (!window.confirm('彻底删掉这一项？删了就找不回来了。')) return;
+          Store.removeTrash(item.id);
+          renderTrash();
+        });
+        acts.appendChild(back);
+        acts.appendChild(gone);
+        row.appendChild(acts);
+        listEl.appendChild(row);
+      });
+    }
+
+    function bindTrash() {
+      document.getElementById('trashAllBtn').addEventListener('click', function () {
+        var n = (Store.getRecords() || []).length;
+        if (!n) { window.alert('现在没有可以清的记录。'); return; }
+        if (!window.confirm('把 ' + n + ' 天的记录全部放进回收站？\n记录台会变空，但回收站里都能还原。')) return;
+        Store.trashAllRecords();
+        render();
+      });
+      document.getElementById('trashClearBtn').addEventListener('click', function () {
+        if (!window.confirm('把回收站里的东西全部彻底删掉？\n这一步之后就找不回来了。')) return;
+        Store.clearTrash();
+        renderTrash();
+      });
+      trashBound = true;
     }
 
     /* ---------- 筛选（Day 12）----------
@@ -335,17 +443,21 @@
       var records = allRecords();
       var days = Records.buildDays(records, today);
 
-      if (forced === 'empty' || !hasGoal || days.length === 0) {
+      // 没目标 = 还没开始，走引导态；有目标但一条记录都没有 = 刚清过空。
+      // 清过空也照样显示内容区，否则回收站被一起藏起来，删掉的东西就点不回来了。
+      if (forced === 'empty' || !hasGoal) {
         renderState('empty');
         document.getElementById('content').style.display = 'none';
         finishDiag();
         return;
       }
 
-      renderState(null);
+      renderState(days.length === 0 ? 'cleared' : null);
       document.getElementById('content').style.display = 'block';
 
       if (!filterBound) { bindFilter(); filterBound = true; }
+      if (!trashBound) bindTrash();
+      renderTrash();
 
       if (MOCK) showMockBadge();
 
