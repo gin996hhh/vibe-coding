@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>参考 · 锚点</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="wrap">
+
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="today.html">今日</a>
+      <a href="records.html">记录台</a>
+      <a href="reflect.html">复盘</a>
+      <a href="growth.html">成长</a>
+      <a href="guide.html" class="active">参考</a>
+    </nav>
+
+    <div class="page-head">
+      <h1>参考</h1>
+      <p class="muted">这里是一本别人写的书，不是系统给你的指令。你自己判断。</p>
+    </div>
+
+    <div class="card">
+      <p class="muted" style="margin-top:0">
+        这 <b id="totalN">—</b> 条来自《高性价比人生指南》(CC BY 4.0，原作者 eternity4719)。
+        每一条都标了<b>花掉什么</b>（钱 / 时间 / 毅力）、<b>换回什么</b>、<b>证据等级</b>（A 最强，C 是经验），
+        以及<b>原始出处</b>。
+      </p>
+      <p class="muted" style="margin-bottom:0">
+        这一页<b>不能勾选，也不记分</b>——产品不会替你对书里的任何一条负责。
+        要用哪条、怎么用，是你自己的事。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 style="margin:0">筛一筛</h2>
+        <span class="count-chip" id="hitN">—</span>
+      </div>
+
+      <div class="filterbar">
+        <div class="f-field">
+          <label class="f-label" for="fScope">按口径</label>
+          <select class="f-sel" id="fScope"></select>
+        </div>
+        <div class="f-field">
+          <label class="f-label" for="fWill">需要毅力吗</label>
+          <select class="f-sel" id="fWill"></select>
+        </div>
+        <div class="f-field">
+          <label class="f-label" for="fGrade">证据等级</label>
+          <select class="f-sel" id="fGrade"></select>
+        </div>
+        <div class="f-field">
+          <label class="f-label" for="fSec">只哪一节</label>
+          <select class="f-sel" id="fSec"></select>
+        </div>
+        <div class="f-field">
+          <label class="f-label" for="fQ">搜关键词</label>
+          <input class="f-input" id="fQ" type="text" placeholder="例：睡眠 / 咖啡 / 合同">
+        </div>
+        <button class="ghost" id="resetBtn">清空</button>
+      </div>
+
+      <p class="muted" style="font-size:13px;margin-bottom:0">
+        排序照作者自己的公式：<b>性价比档位</b>（极高 → 高 → 一般），同档再按证据等级 A → B → C。
+        不同口径不混排。
+      </p>
+    </div>
+
+    <div id="listWrap"></div>
+
+    <p class="muted" style="font-size:12px;margin-top:22px">
+      《高性价比人生指南》· CC BY 4.0 · 原作者 eternity4719 ·
+      <a href="https://github.com/eternity4719/HowToLiveBetter" target="_blank" rel="noopener">原仓库</a>
+      ｜本页数据由 tools/parse-guide.py 从正文机械抽取，字段未改写。
+    </p>
+
+  </div>
+
+  <script src="js/guide-data.js"></script>
+  <script src="js/guide.js"></script>
+  <script>
+    /* ---------- 筛选条件读写 ---------- */
+
+    var ROW_RANK = { '极高': 0, '高': 1, '一般': 2 };
+
+    function fillSelect(el, pairs) {
+      pairs.forEach(function (p) {
+        var o = document.createElement('option');
+        o.value = p.v; o.textContent = p.t;
+        el.appendChild(o);
+      });
+    }
+
+    var st = window.Guide.stats();
+
+    fillSelect(document.getElementById('fScope'),
+      [{ v: '', t: '全部口径（' + st.total + '）' }].concat(
+        window.Guide.SCOPES.map(function (s) {
+          return { v: s, t: s + '（' + (st.byScope[s] || 0) + '）' };
+        })));
+
+    fillSelect(document.getElementById('fWill'),
+      [{ v: '', t: '不限' }].concat(
+        window.Guide.WILLS.map(function (w) {
+          return { v: w, t: (w === '否' ? '不需要毅力' : w === '些' ? '需要一点' : '很需要') +
+                           '（' + (st.byWill[w] || 0) + '）' };
+        })));
+
+    fillSelect(document.getElementById('fGrade'),
+      [{ v: '', t: '不限' }].concat(
+        window.Guide.GRADES.map(function (g) {
+          return { v: g, t: g + ' 级（' + (st.byGrade[g] || 0) + '）' };
+        })));
+
+    fillSelect(document.getElementById('fSec'),
+      [{ v: '', t: '全部 34 节' }].concat(
+        window.Guide.sections().map(function (s) {
+          return { v: String(s.sec), t: s.sec + '. ' + s.title };
+        })));
+
+    document.getElementById('totalN').textContent = st.total;
+
+    /* ---------- 渲染 ---------- */
+
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function readOpts() {
+      return {
+        scope: document.getElementById('fScope').value,
+        will:  document.getElementById('fWill').value,
+        grade: document.getElementById('fGrade').value,
+        sec:   document.getElementById('fSec').value,
+        q:     document.getElementById('fQ').value
+      };
+    }
+
+    function render() {
+      var opts = readOpts();
+      var hits = window.Guide.filter(opts);
+      document.getElementById('hitN').textContent = hits.length + ' 条';
+
+      var wrap = document.getElementById('listWrap');
+
+      if (!hits.length) {
+        wrap.innerHTML = '<div class="card"><p class="muted" style="margin:0">' +
+          '这几样条件凑起来没有条目。放宽一个试试。</p></div>';
+        return;
+      }
+
+      // 一次最多渲染 60 条，剩下的提示收窄条件
+      var shown = hits.slice(0, 60);
+      var html = '';
+
+      shown.forEach(function (e) {
+        var r = window.Guide.ratio(e);
+        html += '<div class="card item">' +
+          '<div class="card-head">' +
+            '<h2 style="margin:0;font-size:15px">' + esc(e.title) + '</h2>' +
+            '<span class="count-chip">' + window.Guide.cite(e) + '</span>' +
+          '</div>' +
+          '<p class="muted" style="font-size:13px;margin:6px 0 0">' +
+            '<b>' + esc(e.secTitle) + '</b> ｜ 性价比 ' + esc(r) +
+            ' ｜ 证据 ' + esc(e.grade) + ' 级 ｜ 口径 ' + esc(e.scope) +
+          '</p>';
+
+        if (e.human) {
+          html += '<p style="margin:10px 0 0">' + esc(e.human) + '</p>';
+        }
+
+        html += '<div class="filterbar" style="margin:10px 0 0">' +
+            '<span class="badge">钱：' + esc(e.money) + '</span>' +
+            '<span class="badge">时间：' + esc(e.time) + '</span>' +
+            '<span class="badge">毅力：' + esc(e.will) + '</span>' +
+            '<span class="badge">收益：' + esc(e.level) + '</span>' +
+          '</div>';
+
+        html += '<details style="margin-top:10px"><summary class="muted" ' +
+          'style="cursor:pointer;font-size:13px">看证据和出处</summary>' +
+          '<div style="margin-top:8px">' +
+            (e.cost  ? '<p class="muted" style="font-size:13px"><b>成本：</b>' + esc(e.cost) + '</p>' : '') +
+            (e.gain  ? '<p class="muted" style="font-size:13px"><b>收益：</b>' + esc(e.gain) + '</p>' : '') +
+            (e.src   ? '<p class="muted" style="font-size:13px"><b>来源：</b>' + esc(e.src) + '</p>' : '') +
+            (e.note  ? '<p class="muted" style="font-size:13px"><b>备注：</b>' + esc(e.note) + '</p>' : '') +
+          '</div></details>';
+
+        html += '</div>';
+      });
+
+      if (hits.length > shown.length) {
+        html += '<p class="muted" style="text-align:center">还有 ' +
+          (hits.length - shown.length) + ' 条没显示，收窄一下上面的条件。</p>';
+      }
+
+      wrap.innerHTML = html;
+    }
+
+    ['fScope', 'fWill', 'fGrade', 'fSec'].forEach(function (id) {
+      document.getElementById(id).addEventListener('change', render);
+    });
+    document.getElementById('fQ').addEventListener('input', render);
+    document.getElementById('resetBtn').addEventListener('click', function () {
+      ['fScope', 'fWill', 'fGrade', 'fSec'].forEach(function (id) {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('fQ').value = '';
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
