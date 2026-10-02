@@ -80,7 +80,7 @@
     var out = all().filter(function (e) {
       if (opts.scope && e.scope !== opts.scope) return false;
       if (opts.will && e.will !== opts.will) return false;
-      if (opts.grade && e.grade !== opts.grade) return false;
+      if (opts.grade && gradeBase(e.grade) !== opts.grade) return false;
       if (opts.sec && String(e.sec) !== String(opts.sec)) return false;
       if (q) {
         var hay = (e.title + ' ' + e.human + ' ' + e.gain + ' ' + e.note + ' ' + e.cost)
@@ -93,8 +93,8 @@
     out.sort(function (a, b) {
       var d = RATIO_RANK[ratio(a)] - RATIO_RANK[ratio(b)];
       if (d) return d;
-      var g = (GRADE_RANK[a.grade] === undefined ? 9 : GRADE_RANK[a.grade])
-            - (GRADE_RANK[b.grade] === undefined ? 9 : GRADE_RANK[b.grade]);
+      var g = (GRADE_RANK[gradeBase(a.grade)] === undefined ? 9 : GRADE_RANK[gradeBase(a.grade)])
+            - (GRADE_RANK[gradeBase(b.grade)] === undefined ? 9 : GRADE_RANK[gradeBase(b.grade)]);
       if (g) return g;
       if (a.sec !== b.sec) return a.sec - b.sec;
       return a.no - b.no;
@@ -123,7 +123,8 @@
     es.forEach(function (e) {
       byScope[e.scope] = (byScope[e.scope] || 0) + 1;
       byWill[e.will]   = (byWill[e.will]   || 0) + 1;
-      byGrade[e.grade] = (byGrade[e.grade] || 0) + 1;
+      var gb = gradeBase(e.grade);
+      byGrade[gb] = (byGrade[gb] || 0) + 1;
     });
     return { total: es.length, byScope: byScope, byWill: byWill, byGrade: byGrade };
   }
@@ -137,6 +138,7 @@
     costScore: costScore,
     ratio: ratio,
     cite: cite,
+    gradeBase: gradeBase,
     filter: filter,
     sections: sections,
     stats: stats
