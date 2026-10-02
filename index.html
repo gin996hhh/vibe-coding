@@ -49,6 +49,20 @@
       </p>
     </div>
 
+    <!-- 小推荐（Victor 2026-10-02）：
+         不逼人立结果——他自己都不知道要什么，硬填一个也是假的。
+         承认"没方向"是常态，再给一个他能理解的、具体的下一步。 -->
+    <div class="card" id="nudgeCard" style="display:none;background:var(--night-2)">
+      <p class="muted" style="margin-top:0">
+        现在没什么方向，很正常，不用硬想一个远大目标。<br>
+        先回答两个小的就行：<b>这个阶段你是谁</b>？<b>眼下最想把哪件事做好</b>？<br>
+        两个都想不出来也没关系——<b>身体是本钱</b>。操作手册第 1 章就是睡眠，从那一条开始，别的等你有感觉了再说。
+      </p>
+      <p style="margin-bottom:0">
+        <a href="protocols.html?ch=1"><button class="ghost">跳过，先做操作手册（睡眠）</button></a>
+      </p>
+    </div>
+
   </div>
 
   <script src="js/store.js"></script>
@@ -66,11 +80,13 @@
       if (goal && goal.content) {
         inputCard.style.display = 'none';
         goalCard.style.display = 'block';
+        document.getElementById('nudgeCard').style.display = 'none';
         document.getElementById('goalText').textContent = goal.content;
         document.getElementById('goalDate').textContent = '建立于 ' + goal.created_at;
       } else {
         inputCard.style.display = 'block';
         goalCard.style.display = 'none';
+        document.getElementById('nudgeCard').style.display = 'block';
       }
     }
 
@@ -98,8 +114,8 @@
     });
 
     document.getElementById('resetBtn').addEventListener('click', function () {
-      if (!confirm('换一个目标会清掉当前目标的拆解，每日记录不受影响。继续？')) return;
-      Store.clearGoal();
+      if (!confirm('旧目标会放进回收站，不是直接消失，随时能看回来。继续？')) return;
+      Store.archiveGoal();   // 进回收站，不直接清掉
       goalInput.value = '';
       render();
     });
