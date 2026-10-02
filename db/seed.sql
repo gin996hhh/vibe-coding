@@ -30,9 +30,13 @@ CREATE TABLE checkins (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- 目标：1 条
+-- 目标：5 条（最新一条是"当前目标"，前面的是改过目标的历史记录）
 INSERT INTO goals (content, created_at) VALUES
-  ('半年内英文口语能上台', '2026-09-28');
+  ('半年内英文口语能上台', '2026-09-28'),
+  ('一周内每天 23 点前睡', '2026-09-20'),
+  ('每天读 10 页书',       '2026-09-15'),
+  ('连续 7 天写复盘',      '2026-09-10'),
+  ('把锚点做到能给别人用', '2026-09-05');
 
 -- 每日计划：6 天（满足"至少 5 行"）
 INSERT INTO plan_days (date, morning_anchor, morning_done, evening_anchor, evening_done, review) VALUES
@@ -52,7 +56,9 @@ INSERT INTO checkins (date, sleep, energy, mood) VALUES
   ('2026-10-02', 3, 4, 3),
   ('2026-10-03', 3, 3, 3);
 
--- 验证（控制台执行完，再跑这两条看行数）
+-- 验证（控制台执行完，再跑这几条看行数）
+-- SELECT count(*) FROM goals;       -- 期望 5
 -- SELECT count(*) FROM plan_days;   -- 期望 6
 -- SELECT count(*) FROM checkins;    -- 期望 6
 -- SELECT * FROM plan_days ORDER BY date;
+-- SELECT * FROM checkins ORDER BY date;
