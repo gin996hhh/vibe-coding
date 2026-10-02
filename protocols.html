@@ -63,6 +63,11 @@
       <p class="muted" style="margin-top:0">
         左边勾选今天做没做，动作下面折叠着它的机制——不确定要不要做的时候，展开看看它凭什么管用。
       </p>
+
+      <!-- 章节快跳：今天睡眠不好，点一下「睡眠」就直接到那儿，不用往下翻 -->
+      <div id="chBar" style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px"></div>
+      <p class="muted" id="focusInfo" style="margin-top:0"></p>
+
       <div id="list"></div>
     </section>
 
@@ -83,7 +88,62 @@
     var recent = E.recentDays(today, 7);
     var state = window.Store.getProtocols() || {};
 
+    /* 只看某一章：null = 47 条全显示。
+       地址栏带 ?ch=1 就只开第 1 章（手机上可以直接存这个链接）。 */
+    var focusCh = null;
+    try {
+      var qch = new URLSearchParams(location.search).get('ch');
+      if (qch) focusCh = parseInt(qch, 10) || null;
+    } catch (e) { focusCh = null; }
+
     document.getElementById('dayBadge').textContent = today;
+
+    /* ---------- 章节快跳条 ---------- */
+    function renderChips() {
+      var chs = E.chapters();
+      var html = '';
+      for (var i = 0; i < chs.length; i++) {
+        var c = chs[i];
+        var on = (focusCh === c.ch);
+        html += '<button class="f-btn ch-chip" data-ch="' + c.ch + '"'
+          + ' style="border:none;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:14px;'
+          + 'background:' + (on ? 'var(--sky-deep)' : 'var(--card-hi)') + ';'
+          + 'color:var(--ink)">' + c.chTitle + '</button>';
+      }
+      html += '<button class="f-btn ch-chip" data-ch="0"'
+        + ' style="border:none;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:14px;'
+        + 'background:' + (focusCh ? 'var(--card-hi)' : 'var(--sky-deep)') + ';'
+        + 'color:var(--ink)">全部</button>';
+      document.getElementById('chBar').innerHTML = html;
+    }
+
+    /* 点章节 = 只显示这一章，并滚到清单。再点「全部」= 47 条都回来。 */
+    function setFocus(ch, scroll) {
+      focusCh = ch;
+      renderChips();
+      renderStats();
+      renderList();
+      if (scroll) {
+        var el = document.getElementById('focusInfo');
+        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function bindFocus() {
+      // 事件委托：章节条和进度条每次重画，监听器挂在外层容器上一次就够
+      document.getElementById('chBar').addEventListener('click', function (ev) {
+        var b = ev.target.closest ? ev.target.closest('.ch-chip') : null;
+        if (!b) return;
+        var v = parseInt(b.getAttribute('data-ch'), 10);
+        setFocus(v === 0 ? null : v, true);
+      });
+      document.getElementById('statList').addEventListener('click', function (ev) {
+        var row = ev.target.closest ? ev.target.closest('[data-ch]') : null;
+        if (!row) return;
+        var v = parseInt(row.getAttribute('data-ch'), 10);
+        setFocus(focusCh === v ? null : v, true);   // 再点一次取消
+      });
+    }
 
     /* ---------- 画：各项目情况 ---------- */
     function renderStats() {
@@ -91,9 +151,11 @@
       var html = '';
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
-        html += '<div style="margin:10px 0">'
+        var on = (focusCh === r.ch);
+        html += '<div class="stat-row" data-ch="' + r.ch + '" style="margin:10px 0;cursor:pointer;'
+          + 'padding:6px 8px;border-radius:8px;background:' + (on ? 'var(--card-hi)' : 'transparent') + '">'
           + '<div style="display:flex;justify-content:space-between;font-size:14px">'
-          + '<span>第' + r.ch + '章 · ' + r.chTitle + '</span>'
+          + '<span>第' + r.ch + '章 · ' + r.chTitle + ' ›</span>'
           + '<span class="muted">今天 ' + r.todayDone + '/' + r.total + '　近7天 ' + r.avg + '%</span>'
           + '</div>'
           + '<div style="height:8px;border-radius:6px;background:var(--card-hi);margin-top:4px;overflow:hidden">'
@@ -136,6 +198,21 @@
     function renderList() {
       var chs = E.chapters();
       var done = state[today] || [];
+
+      /* 只看某一章时，清单里就只剩那一章，并在上面说明现在在看什么、怎么退出来 */
+      var info = document.getElementById('focusInfo');
+      if (focusCh) {
+        var one = null;
+        for (var a = 0; a < chs.length; a++) if (chs[a].ch === focusCh) one = chs[a];
+        info.innerHTML = one
+          ? '只看第 ' + focusCh + ' 章 · ' + one.chTitle + '（' + one.items.length + ' 条）　'
+            + '<a href="#" id="backAll" style="color:var(--sky)">看全部 47 条</a>'
+          : '';
+        chs = one ? [one] : chs;
+      } else {
+        info.textContent = '';
+      }
+
       var html = '';
       for (var i = 0; i < chs.length; i++) {
         var c = chs[i];
@@ -158,6 +235,11 @@
       }
       document.getElementById('list').innerHTML = html;
 
+      var back = document.getElementById('backAll');
+      if (back) {
+        back.onclick = function (ev) { ev.preventDefault(); setFocus(null, true); };
+      }
+
       var boxes = document.querySelectorAll('#list input[type=checkbox]');
       for (var k = 0; k < boxes.length; k++) {
         boxes[k].onchange = function () {
@@ -169,6 +251,8 @@
       }
     }
 
+    renderChips();
+    bindFocus();
     renderStats();
     renderSuggest();
     renderList();
