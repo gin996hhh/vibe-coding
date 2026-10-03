@@ -58,7 +58,7 @@ function daysAgo(n) {
   return d.toISOString().slice(0, 10);
 }
 
-function buildParams(q, status, days) {
+function buildParams(q, status, days, limit) {
   var parts = ['select=' + SELECT, 'order=date.desc'];
 
   if (q) {
@@ -75,6 +75,8 @@ function buildParams(q, status, days) {
     var n = Number(days);
     if (!isNaN(n) && n > 0) parts.push('date=gte.' + daysAgo(n));
   }
+
+  if (limit) parts.push('limit=' + Number(limit));
 
   return parts.join('&');
 }
@@ -129,6 +131,11 @@ function toDate(v) {
 
 /* ---------- HTTP 服务 ---------- */
 
+// 失败统一形状：契约要求 error 是 { code, message } 对象，不是一句话
+function fail(res, status, code, message) {
+  send(res, status, { ok: false, error: { code: code, message: message } });
+}
+
 function send(res, code, body) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
@@ -150,7 +157,7 @@ const server = http.createServer(async (req, res) => {
 
   // 只接受 GET，别的明确挡掉，别让它悄悄走成功分支
   if (req.method !== 'GET') {
-    send(res, 405, { ok: false, error: '这个接口只接受 GET 请求，你发的是 ' + req.method });
+    fail(res, 405, 'METHOD_NOT_ALLOWED', '这个接口只接受 GET，你发的是 ' + req.method);
     return;
   }
 
@@ -158,22 +165,27 @@ const server = http.createServer(async (req, res) => {
   var q = u.searchParams.get('q');
   var status = u.searchParams.get('status') || 'all';
   var days = u.searchParams.get('days');
+  var limit = u.searchParams.get('limit');
 
   // 契约里 status 只有四档，给了别的值要挡掉并说清楚
   if (!(status in STATUS_FILTER)) {
-    send(res, 400, {
-      ok: false,
-      error: 'status 只能是 all / some / all_done / none 这四个，你给的是「' + status + '」'
-    });
+    fail(res, 400, 'INVALID_STATUS',
+      'status 只能是 all / some / all_done / none 这四个，你给的是「' + status + '」');
     return;
   }
 
+  // limit 是加练项：只收 1 到 100，防止一次要几十万条把接口拖垮
+  if (limit) {
+    var ln = Number(limit);
+    if (!Number.isInteger(ln) || ln < 1 || ln > 100) {
+      fail(res, 400, 'INVALID_LIMIT', 'limit 只能是 1 到 100 的整数，你给的是「' + limit + '」');
+      return;
+    }
+  }
+
   if (!TOKEN) {
-    send(res, 500, {
-      ok: false,
-      error: '缺少访问凭证。请到 CloudBase 控制台 → 环境 → 访问凭证，复制 API 密钥，' +
-        '填进本函数的环境变量 TCB_ACCESS_TOKEN。'
-    });
+    fail(res, 500, 'MISSING_TOKEN',
+      '服务端没配访问凭证。到 CloudBase 控制台 → 环境 → 访问凭证复制 API 密钥，填进本函数的环境变量 TCB_ACCESS_TOKEN。');
     return;
   }
 
@@ -181,7 +193,7 @@ const server = http.createServer(async (req, res) => {
     // 表里一共多少天（不带筛选，只取计数不取数据，省流量）
     var totalRes = await rdb('select=date&limit=1', true);
     // 命中多少天 + 具体条目（带筛选）
-    var listRes = await rdb(buildParams(q, status, days), true);
+    var listRes = await rdb(buildParams(q, status, days, limit), true);
 
     send(res, 200, {
       ok: true,
@@ -202,7 +214,7 @@ const server = http.createServer(async (req, res) => {
     });
   } catch (e) {
     // 出错也给中文说明，不把英文堆栈直接甩给前端
-    send(res, 500, { ok: false, error: '读数据库失败：' + (e && e.message ? e.message : String(e)) });
+    fail(res, 500, 'PLAN_DAYS_READ_FAILED', '读计划数据失败：' + (e && e.message ? e.message : String(e)));
   }
 });
 
