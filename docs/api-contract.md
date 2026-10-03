@@ -71,6 +71,8 @@ POST /api/goal
 
 ## 3. 写入今天的体检
 
+状态：已实现（Day 18，2026-10-03 部署并验证通过）
+
 POST /api/checkins
 
 请求参数：
@@ -90,6 +92,8 @@ POST /api/checkins
 失败：
 - `INVALID_RANGE`：三项里有不在 1 到 5 的
 - `DATE_MISSING`：date 没给
+- `FIELD_MISSING`：sleep / energy / mood 少给了某一项（Day 18 实测补记）
+- `PLAN_DAY_NOT_FOUND`：这一天在 plan_days 里没有记录（checkins.date 外键指向 plan_days.date，没排计划的那天打不了卡；Day 18 实测发现后补记）
 
 
 ## 4. 写入今天的计划（早晚两条锚点）
@@ -134,6 +138,8 @@ PATCH /api/plan-days/:date
 
 ## 6. 读取计划列表（支持筛选，记录台用）
 
+状态：已实现（Day 17，2026-10-03 部署并验证通过）
+
 GET /api/plan-days
 
 查询参数（都可选）：
@@ -148,6 +154,7 @@ GET /api/plan-days
 
 失败：
 - `INVALID_STATUS`：status 不在允许的四档里
+- `INVALID_LIMIT`：limit 不是 1 到 100 的整数（Day 17 余力加练加的参数，1 到 100，不给就全返回）
 
 
 ## 7. 读取某一天（含体检，复盘页对照用）
@@ -201,3 +208,7 @@ plan_days 与 checkins 靠 date 关联：同一天，一边一条计划，一边
 
 第 1 到第 8 个接口**今天全部只登记占位，不实现**。
 Day 15 只实现第 0 个（/api/health）。
+
+2026-10-03 补记（不改动上面的原文，只追加事实）：
+第 3 条（POST /api/checkins）和第 6 条（GET /api/plan-days）已实现、已部署到公网、已实测通过，
+在上面两条各自的标题下标注了状态。第 1、2、4、5、7、8 条仍是占位。
