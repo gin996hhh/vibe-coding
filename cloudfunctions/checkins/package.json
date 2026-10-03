@@ -1,0 +1,7 @@
+{
+  "name": "checkins",
+  "version": "1.0.0",
+  "description": "锚点 · POST /api/checkins，Day 18 把当天身体状态写进数据库",
+  "main": "index.js",
+  "dependencies": {}
+}
