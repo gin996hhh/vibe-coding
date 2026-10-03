@@ -97,6 +97,19 @@ async function findOne(date) {
   return rows && rows.length ? rows[0] : null;
 }
 
+// checkins.date 外键引用 plan_days(date)（见 db/schema.sql 第 30 行）：
+// 没有计划的那天打不了卡。这里提前查一次，把数据库原本的英文外键报错
+// 换成一句人能看懂的中文，不然前端只能拿到 500 和一堆英文。
+async function planDayExists(date) {
+  var res = await fetch(BASE + '/plan_days?select=date&date=eq.' + date, {
+    method: 'GET',
+    headers: authHeaders()
+  });
+  if (!res.ok) throw new Error('查询当天计划失败（网关返回 ' + res.status + '）');
+  var rows = await res.json();
+  return Boolean(rows && rows.length);
+}
+
 async function insertRow(row) {
   row.created_at = new Date().toISOString();
   var res = await fetch(BASE + '/checkins?select=' + SELECT, {
@@ -201,6 +214,14 @@ const server = http.createServer(async (req, res) => {
       saved = await updateRow(checked.row.date, checked.row);
       action = 'updated';
     } else {
+      // 新增前先看这天有没有计划。没有就直接挡掉并说明原因，
+      // 别让数据库抛英文外键错误、前端拿到 500 白屏。
+      if (!(await planDayExists(checked.row.date))) {
+        fail(res, 400, 'PLAN_DAY_NOT_FOUND',
+          checked.row.date + ' 这天还没有计划（plan_days 表里没有这一天）。' +
+          '体检记录要挂在某一天的计划上，先写计划再打卡。');
+        return;
+      }
       saved = await insertRow(checked.row);
       action = 'created';
     }
