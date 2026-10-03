@@ -39,6 +39,7 @@
       <div class="head-side">
         <span class="badge" id="goalBadge" style="display:none"></span>
         <span class="badge" id="demoBadge" style="display:none"></span>
+        <span class="badge" id="cloudBadge" style="display:none"></span>
       </div>
     </header>
 
@@ -153,8 +154,55 @@
        本页只读不写，所以示例数据在这里不存在污染问题。 */
     var MOCK = null;
 
+    /* ---------- 云端数据源（Day 17） ----------
+       真实数据已经搬到云上的 plan_days 表了。本页先读接口 GET /api/plan-days，
+       按契约返回 { ok, data:{ total, matched, items:[...] } }；
+       读不到（断网、接口挂了）就退回浏览器本地，页面照常能用，不至于白屏。
+       ?api=0 可以强制只读本地，用来对照"本地 vs 云端"两种数据来源。 */
+    var API_BASE = 'https://victor-1a2b3c4d-d5fmr5rn115087c8-1499478684.ap-shanghai.app.tcloudbase.com';
+    var cloudRecords = null;
+    var cloudNote = '';
+
+    // 接口给的一天 → 记录台认的一条记录（字段名按 records.js 的约定转一遍）
+    function apiMap(it) {
+      return {
+        date: it.date,
+        morning_done: !!it.morning_done,
+        evening_done: !!it.evening_done,
+        anchors: {
+          morning: it.morning_anchor ? { text: it.morning_anchor } : null,
+          evening: it.evening_anchor ? { text: it.evening_anchor } : null
+        },
+        // 接口里的 review 是当天那句复盘，放进复盘文字参与"这天有没有内容"的判断
+        method_text: it.review || '',
+        checkin: it.checkin || null
+      };
+    }
+
+    function loadCloud() {
+      var off = null;
+      try { off = new URLSearchParams(location.search).get('api'); } catch (e) {}
+      if (off === '0') {
+        cloudNote = '已强制只读本地（?api=0）';
+        return Promise.resolve();
+      }
+      return fetch(API_BASE + '/api/plan-days', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.ok !== true) throw new Error((j && j.error && j.error.message) || '接口没返回数据');
+          cloudRecords = (j.data.items || []).map(apiMap);
+          cloudNote = '云端接口 ' + (j.data.matched || cloudRecords.length) + ' / 共 ' + j.data.total + ' 天';
+        })
+        .catch(function (e) {
+          cloudRecords = null;
+          cloudNote = '云端没取到（' + (e && e.message ? e.message : '网络不通') + '），已用本地数据';
+        });
+    }
+
     function allRecords() {
-      return MOCK ? MOCK.records : (Store.getRecords() || []);
+      if (MOCK) return MOCK.records;
+      if (cloudRecords) return cloudRecords;
+      return Store.getRecords() || [];
     }
 
     function el(tag, cls, text) {
@@ -424,7 +472,7 @@
          ?mock=1 强制开 ／ ?mock=0 强制关 ／ 默认：一条真实记录都没有时自动开。 */
       var qMock = null;
       try { qMock = new URLSearchParams(location.search).get('mock'); } catch (e) { qMock = null; }
-      var realDays = Records.buildDays(Store.getRecords(), today);
+      var realDays = Records.buildDays(allRecords(), today);
       MOCK = null;
       if (qMock === '1') {
         MOCK = Mock.build(today);
@@ -460,6 +508,15 @@
       renderTrash();
 
       if (MOCK) showMockBadge();
+
+      // 数据来源写在页面上，一眼能看出来这屏数字是云端给的还是本地的
+      var cbEl = document.getElementById('cloudBadge');
+      if (cloudNote) {
+        cbEl.textContent = cloudRecords ? '数据来自云端接口：' + cloudNote : cloudNote;
+        cbEl.className = 'badge' + (cloudRecords ? ' on' : '');
+        cbEl.style.display = 'inline-block';
+        cbEl.title = cloudRecords ? API_BASE + '/api/plan-days' : '接口没取到，已退回本地数据';
+      }
 
       var badge = document.getElementById('goalBadge');
       if (goal && goal.content) {
@@ -504,6 +561,7 @@
       d.push('目标' + (hasGoal ? '已读到' : '未读到'));
       d.push('记录' + dayCount + '天');
       if (MOCK) d.push('示例数据=开');
+      if (cloudNote) d.push(cloudNote);
       if (forced) d.push('演示状态=' + forced);
       if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
       var diagEl = document.getElementById('diag');
@@ -533,7 +591,8 @@
       finishDiag();
     } else {
       renderState('loading');
-      setTimeout(render, 450);
+      // 先拉云端，拉完再渲染；接口慢或挂了也不会卡住页面（loadCloud 自己兜底）
+      loadCloud().then(function () { setTimeout(render, 450); });
     }
   })();
   </script>

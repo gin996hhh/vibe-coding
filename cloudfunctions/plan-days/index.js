@@ -44,6 +44,10 @@ var TOKEN = pick('TCB_ACCESS_TOKEN', 'CLOUDBASE_ACCESS_TOKEN', 'TCB_API_KEY', 'C
 var BASE = 'https://' + ENV_ID + '.api.tcloudbasegateway.com/v1/rdb/rest';
 var SELECT = 'date,morning_anchor,morning_done,evening_anchor,evening_done,review';
 
+// 表名单独提出来：Day 17 做错误检测时要故意把它改错，
+// 改一处就够，不用去动拼接 URL 的那几行
+var TABLE = 'plan_days';
+
 /* ---------- 把筛选条件翻译成网关的查询串 ---------- */
 
 var STATUS_FILTER = {
@@ -83,8 +87,8 @@ function buildParams(q, status, days, limit) {
 
 /* ---------- 向网关发一次请求 ---------- */
 
-async function rdb(params, wantCount) {
-  var url = BASE + '/plan_days?' + params;
+async function rdb(params, wantCount, table) {
+  var url = BASE + '/' + (table || TABLE) + '?' + params;
   var headers = {
     'Content-Type': 'application/json',
     Authorization: 'Bearer ' + TOKEN,
@@ -129,6 +133,31 @@ function toDate(v) {
   return d.toISOString().slice(0, 10);
 }
 
+/* ---------- 读某一天（契约第 7 条：这天没排计划就 404，有就把当天体检一起带上） ---------- */
+
+var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+async function readOneDay(date) {
+  var plan = await rdb('select=' + SELECT + '&date=eq.' + encodeURIComponent(date));
+  if (!plan.rows.length) return null;
+
+  // 体检是另一张表，同一天最多一条；没有就给 null，前端自己判断
+  var ck = await rdb('select=date,sleep,energy,mood,created_at&date=eq.' + encodeURIComponent(date),
+    false, 'checkins');
+  var c = ck.rows && ck.rows.length ? ck.rows[0] : null;
+
+  var r = plan.rows[0];
+  return {
+    date: toDate(r.date),
+    morning_anchor: r.morning_anchor,
+    morning_done: r.morning_done,
+    evening_anchor: r.evening_anchor,
+    evening_done: r.evening_done,
+    review: r.review,
+    checkin: c ? { sleep: c.sleep, energy: c.energy, mood: c.mood } : null
+  };
+}
+
 /* ---------- HTTP 服务 ---------- */
 
 // 失败统一形状：契约要求 error 是 { code, message } 对象，不是一句话
@@ -162,6 +191,36 @@ const server = http.createServer(async (req, res) => {
   }
 
   var u = new URL(req.url, 'http://localhost');
+
+  // 单天模式：/api/plan-days/2026-10-03（契约第 7 条的路径形式），
+  // 也接受 ?date=2026-10-03，省得网关不支持路径参数时没法用
+  var oneDate = u.searchParams.get('date');
+  var m = u.pathname.replace(/\/+$/, '').match(/\/api\/plan-days\/(\d{4}-\d{2}-\d{2})$/);
+  if (m) oneDate = m[1];
+
+  if (oneDate) {
+    if (!DATE_RE.test(oneDate)) {
+      fail(res, 400, 'INVALID_DATE', 'date 必须是 YYYY-MM-DD 这样的日期，你给的是「' + oneDate + '」');
+      return;
+    }
+    if (!TOKEN) {
+      fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
+      return;
+    }
+    try {
+      var day = await readOneDay(oneDate);
+      if (!day) {
+        fail(res, 404, 'DATE_NOT_FOUND', oneDate + ' 这天还没有计划，plan_days 表里没有这一天的记录。');
+        return;
+      }
+      send(res, 200, { ok: true, data: day });
+    } catch (e) {
+      console.error('[plan-days] 读单天失败：', e && e.message ? e.message : String(e));
+      fail(res, 500, 'PLAN_DAYS_READ_FAILED', '读这一天的记录失败，原因已记在云函数日志里。');
+    }
+    return;
+  }
+
   var q = u.searchParams.get('q');
   var status = u.searchParams.get('status') || 'all';
   var days = u.searchParams.get('days');
