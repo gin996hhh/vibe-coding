@@ -213,8 +213,13 @@ const server = http.createServer(async (req, res) => {
       }
     });
   } catch (e) {
-    // 出错也给中文说明，不把英文堆栈直接甩给前端
-    fail(res, 500, 'PLAN_DAYS_READ_FAILED', '读计划数据失败：' + (e && e.message ? e.message : String(e)));
+    // 服务端日志（余力加练）：原始报错可能是英文，留在这里方便以后排查
+    console.error('[plan-days] 读库失败：', e && e.message ? e.message : String(e));
+    // 给前端的必须是人能看懂的中文，不能把英文堆栈原样甩出去
+    var why = e && e.status === 404
+      ? '数据库里找不到要读的那张表（表名写错了，或者这张表还没建）'
+      : '数据通道暂时连不上，或者返回了看不懂的结果';
+    fail(res, 500, 'PLAN_DAYS_READ_FAILED', '读计划数据失败：' + why + '。原因已记在云函数日志里。');
   }
 });
 

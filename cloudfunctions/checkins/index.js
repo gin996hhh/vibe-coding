@@ -239,7 +239,10 @@ const server = http.createServer(async (req, res) => {
       }
     });
   } catch (e) {
-    fail(res, 500, 'CHECKINS_WRITE_FAILED', '写体检记录失败：' + (e && e.message ? e.message : String(e)));
+    // 服务端日志（余力加练）：原始报错可能是英文，留在这里方便以后排查
+    console.error('[checkins] 写库失败：', e && e.message ? e.message : String(e));
+    // 给前端的必须是人能看懂的中文，不能把英文堆栈原样甩出去
+    fail(res, 500, 'CHECKINS_WRITE_FAILED', '写体检记录失败：数据通道暂时连不上，或者这条数据被数据库挡下了（比如同一天已有记录）。原因已记在云函数日志里。');
   }
 });
 
