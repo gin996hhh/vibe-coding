@@ -1,0 +1,4 @@
+#!/bin/bash
+# CloudBase HTTP 函数启动脚本：容器起来后执行本文件，启动 Node.js HTTP 服务
+# 端口由 CloudBase 注入环境变量 PORT，index.js 读不到时兜底 9000
+exec node index.js

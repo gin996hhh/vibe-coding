@@ -1,0 +1,7 @@
+{
+  "name": "plan-days",
+  "version": "1.0.0",
+  "description": "锚点 · GET /api/plan-days，Day 17 第一个连库的读接口",
+  "main": "index.js",
+  "dependencies": {}
+}
