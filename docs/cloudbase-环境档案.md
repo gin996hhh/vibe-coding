@@ -51,6 +51,25 @@
 
 仓库已在个人账号 `gin996hhh/vibe-coding`，不需要从班级组织转移。
 
+## 八、2026-10-03 更新（原文不动，本节是对上面第二节的更正与补充）
+
+上面「二、两个公网地址」里的**前端地址已失效**（2026-10-02 删应用重点项目时被回收，返回 INVALID_HOST，救不回来）。按现行的：
+
+| 用途 | 地址（2026-10-03 起） |
+|---|---|
+| 前端页面 | https://victor-1a2b3c4d-d5fmr5rn115087c8-1499478684.tcloudbaseapp.com/anchor/ （尾巴 `/anchor/` 不能少；首次打开有测试域名风险提醒页，点继续） |
+| GET 读计划 | https://victor-1a2b3c4d-d5fmr5rn115087c8-1499478684.ap-shanghai.app.tcloudbase.com/api/plan-days |
+| POST 写体检 | https://victor-1a2b3c4d-d5fmr5rn115087c8-1499478684.ap-shanghai.app.tcloudbase.com/api/checkins |
+| 健康接口 | https://victor-1a2b3c4d-d5fmr5rn115087c8-1499478804.ap-shanghai.app.tcloudbase.com/api/health |
+
+注意两个域名长得像但不是同一个：
+- 静态托管域名 `…-1499478684.tcloudbaseapp.com`（**没有** ap-shanghai.app）
+- 网关域名 `…-1499478684.ap-shanghai.app.tcloudbase.com`（**有** ap-shanghai.app）
+读接口、写接口都挂在网关域名下。
+
+Day 17、18 建的两个函数（plan-days、checkin）的配置细节、环境变量名、路由表、踩过的坑，另见：
+`docs/deploy-云函数与网关配置清单.md`
+
 ## 七、一条流程提醒（附录 H 给的）
 
 Day 20 前端要接真实接口，**CORS 跨域配置是在「HTTP 访问服务」里配的**。我们已经在 health 云函数代码里写了 CORS 响应头（代码层），到 Day 20 时再在网关层确认一次，两层都有更稳。
