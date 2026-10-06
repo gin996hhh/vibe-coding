@@ -70,7 +70,8 @@ function validate(body) {
 /* ---------- HTTP 入口 ---------- */
 
 function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS 的允许来源由网关层统一配（单一白名单域名）。代码层再设一层会拼成
+  // "https://xxx,*" 畸形值被浏览器拦掉（Day 20 踩过），这里只保留方法和头。
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
