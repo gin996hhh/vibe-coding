@@ -2,129 +2,38 @@
 
 /**
  * GET /api/plan-days —— Day 17 第一个真正读到数据库内容的接口
+ * Day 19 重构：把「怎么查数据库」搬走了，这个文件只剩三件事
  *
- * 做什么：把 plan_days 表里的数据读出来给记录台用，支持三个可选筛选：
- *   q      关键词，匹配早晚锚点和复盘文字
- *   status all（默认）/ some（有完成）/ all_done（全完成）/ none（都没做）
- *   days   只要最近 N 天
+ * 这个文件现在管什么（入口层 + 业务组装）：
+ *   1. 接 HTTP 请求、判断方法和参数合不合规
+ *   2. 调数据访问层拿数据（planDaysRepository / checkinsRepository）
+ *   3. 把数据拼成契约规定的响应形状返回
  *
- * 为什么不用 pg 驱动直连、改走平台的 PG HTTP 网关：
- *   这个环境是共享集群（个人版那档），CloudBase 在该档位下不开外网地址、
- *   也不支持内网互联/VPC，所以 TCP 直连在部署后必然超时。网关是平台自己
- *   的数据通道，云函数发一个 HTTP 请求就能读到同一张真表，不需要数据库
- *   密码，也不需要配网络。
+ * 这个文件现在不管什么（数据访问层的事）：
+ *   请求发给哪个地址、带什么凭证、查哪张表、筛选条件怎么翻译成查询串、
+ *   返回的错误码怎么解析——这些都在 _shared 里的 repository 和 gatewayClient。
  *
- * 为什么响应统一成 { ok, data, error }：
- *   前端以后只认这一个形状——成功看 data，失败看 error。
- *   任何接口都不例外，前端就不用为每个接口写一套判断。
+ * 为什么接口文件里不许出现表名和查询串：
+ *   以前这些知识直接写在这里。能跑，但每加一个接口就要抄一遍，而且
+ *   plan_days 这张表的查询会散在多个文件里——将来给表加一个字段要改 N 处，
+ *   改漏一处不会报错，只会表现为某个接口读得到、另一个读不到。
+ *   集中到 repository 之后，一张表的知识只有一份。
  *
- * 为什么筛选条件要一项项拼进查询串、而不是拼成一句话：
- *   用户输入的关键词里如果带 & = * 这类符号，直接拼会改变查询含义。
- *   每一项都用 encodeURIComponent 转义，它就只能被当成"值"。
+ * 重构的硬要求（Day 19）：响应形状、HTTP 状态码、错误文案一律不变，
+ * 不新增任何功能。今天的活是搬家，不是添家具。
  */
 
 const http = require('node:http');
 
+const planDaysRepo = require('./planDaysRepository');
+const checkinsRepo = require('./checkinsRepository');
+const gw = require('./gatewayClient');
+
 const PORT = process.env.PORT || 9000;
 
-/* ---------- 连接信息：全部从环境变量读，不写死在代码里 ---------- */
+var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function pick() {
-  for (var i = 0; i < arguments.length; i++) {
-    var v = process.env[arguments[i]];
-    if (v) return String(v).trim();
-  }
-  return null;
-}
-
-// 环境 ID：控制台「环境 → 环境信息」里有；这里给个兜底值，避免漏配直接 404
-var ENV_ID = pick('TCB_ENV_ID', 'CLOUDBASE_ENV_ID') || 'victor-1a2b3c4d-d5fmr5rn115087c8';
-var TOKEN = pick('TCB_ACCESS_TOKEN', 'CLOUDBASE_ACCESS_TOKEN', 'TCB_API_KEY', 'CLOUDBASE_API_KEY');
-
-var BASE = 'https://' + ENV_ID + '.api.tcloudbasegateway.com/v1/rdb/rest';
-var SELECT = 'date,morning_anchor,morning_done,evening_anchor,evening_done,review';
-
-// 表名单独提出来：Day 17 做错误检测时要故意把它改错，
-// 改一处就够，不用去动拼接 URL 的那几行
-var TABLE = 'plan_days';
-
-/* ---------- 把筛选条件翻译成网关的查询串 ---------- */
-
-var STATUS_FILTER = {
-  all: null,
-  some: 'or=(morning_done.eq.true,evening_done.eq.true)',
-  all_done: 'and=(morning_done.eq.true,evening_done.eq.true)',
-  none: 'and=(morning_done.eq.false,evening_done.eq.false)'
-};
-
-function daysAgo(n) {
-  var d = new Date(Date.now() - Number(n) * 86400000);
-  return d.toISOString().slice(0, 10);
-}
-
-function buildParams(q, status, days, limit) {
-  var parts = ['select=' + SELECT, 'order=date.desc'];
-
-  if (q) {
-    var kw = encodeURIComponent(q);
-    parts.push('or=(morning_anchor.ilike.*' + kw + '*' +
-      ',evening_anchor.ilike.*' + kw + '*' +
-      ',review.ilike.*' + kw + '*)');
-  }
-
-  var st = STATUS_FILTER[status];
-  if (st) parts.push(st);
-
-  if (days) {
-    var n = Number(days);
-    if (!isNaN(n) && n > 0) parts.push('date=gte.' + daysAgo(n));
-  }
-
-  if (limit) parts.push('limit=' + Number(limit));
-
-  return parts.join('&');
-}
-
-/* ---------- 向网关发一次请求 ---------- */
-
-async function rdb(params, wantCount, table) {
-  var url = BASE + '/' + (table || TABLE) + '?' + params;
-  var headers = {
-    'Content-Type': 'application/json',
-    Authorization: 'Bearer ' + TOKEN,
-    apikey: TOKEN
-  };
-  // 要计数就带上这个头，网关会在 Content-Range 里回总数
-  if (wantCount) headers.Prefer = 'count=exact';
-
-  var res = await fetch(url, { method: 'GET', headers: headers, body: null });
-  var text = await res.text();
-
-  if (!res.ok) {
-    var msg = text;
-    try {
-      var j = JSON.parse(text);
-      msg = j.message || j.code || text;
-    } catch (e) { /* 不是 JSON 就用原文 */ }
-    var err = new Error('网关返回 ' + res.status + '：' + msg);
-    err.status = res.status;
-    throw err;
-  }
-
-  var rows = [];
-  try {
-    rows = JSON.parse(text);
-  } catch (e) { /* 空响应按空数组处理 */ }
-
-  var matched = null;
-  if (wantCount) {
-    var range = res.headers.get('content-range'); // 形如 0-5/6
-    if (range && range.indexOf('/') > -1) matched = Number(range.split('/')[1]);
-    if (matched === null || isNaN(matched)) matched = rows.length;
-  }
-
-  return { rows: rows, matched: matched };
-}
+/* ---------- 业务层：把两张表的数据拼成契约第 7 条规定的形状 ---------- */
 
 function toDate(v) {
   if (!v) return null;
@@ -133,32 +42,30 @@ function toDate(v) {
   return d.toISOString().slice(0, 10);
 }
 
-/* ---------- 读某一天（契约第 7 条：这天没排计划就 404，有就把当天体检一起带上） ---------- */
-
-var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
+/**
+ * 读某一天：这天没排计划就返回 null，有就把当天的体检一起带上。
+ * 这里只做「拼装」，不碰任何查询细节——查计划问 planDaysRepository，
+ * 查体检问 checkinsRepository。
+ */
 async function readOneDay(date) {
-  var plan = await rdb('select=' + SELECT + '&date=eq.' + encodeURIComponent(date));
-  if (!plan.rows.length) return null;
+  var plan = await planDaysRepo.findByDate(date);
+  if (!plan) return null;
 
   // 体检是另一张表，同一天最多一条；没有就给 null，前端自己判断
-  var ck = await rdb('select=date,sleep,energy,mood,created_at&date=eq.' + encodeURIComponent(date),
-    false, 'checkins');
-  var c = ck.rows && ck.rows.length ? ck.rows[0] : null;
+  var c = await checkinsRepo.findByDate(date);
 
-  var r = plan.rows[0];
   return {
-    date: toDate(r.date),
-    morning_anchor: r.morning_anchor,
-    morning_done: r.morning_done,
-    evening_anchor: r.evening_anchor,
-    evening_done: r.evening_done,
-    review: r.review,
+    date: toDate(plan.date),
+    morning_anchor: plan.morning_anchor,
+    morning_done: plan.morning_done,
+    evening_anchor: plan.evening_anchor,
+    evening_done: plan.evening_done,
+    review: plan.review,
     checkin: c ? { sleep: c.sleep, energy: c.energy, mood: c.mood } : null
   };
 }
 
-/* ---------- HTTP 服务 ---------- */
+/* ---------- HTTP 入口 ---------- */
 
 // 失败统一形状：契约要求 error 是 { code, message } 对象，不是一句话
 function fail(res, status, code, message) {
@@ -203,7 +110,7 @@ const server = http.createServer(async (req, res) => {
       fail(res, 400, 'INVALID_DATE', 'date 必须是 YYYY-MM-DD 这样的日期，你给的是「' + oneDate + '」');
       return;
     }
-    if (!TOKEN) {
+    if (!gw.hasToken()) {
       fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
       return;
     }
@@ -227,7 +134,7 @@ const server = http.createServer(async (req, res) => {
   var limit = u.searchParams.get('limit');
 
   // 契约里 status 只有四档，给了别的值要挡掉并说清楚
-  if (!(status in STATUS_FILTER)) {
+  if (!(status in planDaysRepo.STATUS_FILTER)) {
     fail(res, 400, 'INVALID_STATUS',
       'status 只能是 all / some / all_done / none 这四个，你给的是「' + status + '」');
     return;
@@ -242,22 +149,21 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  if (!TOKEN) {
+  if (!gw.hasToken()) {
     fail(res, 500, 'MISSING_TOKEN',
       '服务端没配访问凭证。到 CloudBase 控制台 → 环境 → 访问凭证复制 API 密钥，填进本函数的环境变量 TCB_ACCESS_TOKEN。');
     return;
   }
 
   try {
-    // 表里一共多少天（不带筛选，只取计数不取数据，省流量）
-    var totalRes = await rdb('select=date&limit=1', true);
-    // 命中多少天 + 具体条目（带筛选）
-    var listRes = await rdb(buildParams(q, status, days, limit), true);
+    // 表里一共多少天、命中多少天、具体条目，都问数据访问层要
+    var total = await planDaysRepo.countAll();
+    var listRes = await planDaysRepo.list({ q: q, status: status, days: days, limit: limit });
 
     send(res, 200, {
       ok: true,
       data: {
-        total: totalRes.matched,
+        total: total,
         matched: listRes.matched,
         items: listRes.rows.map(function (r) {
           return {

@@ -2,54 +2,36 @@
 
 /**
  * POST /api/checkins —— Day 18：把"今天身体怎么样"写进数据库
+ * Day 19 重构：把「怎么查数据库」搬走了，这个文件只剩三件事
  *
- * 做什么：收到前端发来的 { date, sleep, energy, mood }，存进 checkins 表。
- *   同一天再提交一次 = 改当天那条（不会变成两条），所以反复提交是安全的。
+ * 这个文件现在管什么（入口层 + 业务规则）：
+ *   1. 接 HTTP 请求、判断方法和参数合不合规（校验属于业务规则，不归数据层管）
+ *   2. 调数据访问层读写（checkinsRepository 写体检，planDaysRepository 确认
+ *      这天有没有计划——同一张表的知识全项目只有一份，不再自己抄一遍）
+ *   3. 把结果拼成契约规定的响应形状返回
  *
- * 为什么只接受 POST：
- *   写数据的动作不该走 GET。GET 会被浏览器缓存、可能被预取、链接一点就触发，
- *   写操作必须显式用 POST，这是接口设计的规矩。
+ * 这个文件现在不管什么（数据访问层的事）：
+ *   请求发给哪个地址、带什么凭证、查哪张表、新增和更新分别怎么发——
+ *   这些都在 _shared 里的 repository 和 gatewayClient。
  *
- * 为什么每个值都要校验：
- *   前端可以做校验，但接口不能指望前端一定可靠——别人可以直接发请求打进来。
- *   睡眠/精力/心情只收 1 到 5 的整数，日期只收 YYYY-MM-DD，不合规就挡掉，
- *   挡掉时用中文说清楚哪一项不对、应该是什么样。
+ * 为什么校验留在入口层：
+ *   「睡眠只能是 1 到 5」是业务规矩，不是数据库的规矩。repository 只管
+ *   怎么把数据存进去，不该替业务决定什么值合法，否则别的调用方想用
+ *   另一套规矩时就绕不开它。
  *
- * 为什么响应形状和读接口一样是 { ok, data, error }：
- *   前端只认这一个形状，读写都一样，就不用为写接口另写一套判断。
+ * 重构的硬要求（Day 19）：响应形状、HTTP 状态码、错误文案一律不变，
+ * 不新增任何功能。今天的活是搬家，不是添家具。
  */
 
 const http = require('node:http');
 
+const checkinsRepo = require('./checkinsRepository');
+const planDaysRepo = require('./planDaysRepository');
+const gw = require('./gatewayClient');
+
 const PORT = process.env.PORT || 9000;
 
-/* ---------- 连接信息：全部从环境变量读 ---------- */
-
-function pick() {
-  for (var i = 0; i < arguments.length; i++) {
-    var v = process.env[arguments[i]];
-    if (v) return String(v).trim();
-  }
-  return null;
-}
-
-var ENV_ID = pick('TCB_ENV_ID', 'CLOUDBASE_ENV_ID') || 'victor-1a2b3c4d-d5fmr5rn115087c8';
-var TOKEN = pick('TCB_ACCESS_TOKEN', 'CLOUDBASE_ACCESS_TOKEN', 'TCB_API_KEY', 'CLOUDBASE_API_KEY');
-
-var BASE = 'https://' + ENV_ID + '.api.tcloudbasegateway.com/v1/rdb/rest';
-var SELECT = 'date,sleep,energy,mood,created_at';
-
-function authHeaders(extra) {
-  var h = {
-    'Content-Type': 'application/json',
-    Authorization: 'Bearer ' + TOKEN,
-    apikey: TOKEN
-  };
-  if (extra) Object.assign(h, extra);
-  return h;
-}
-
-/* ---------- 校验 ---------- */
+/* ---------- 校验（业务规则，属于这一层） ---------- */
 
 var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 var SCORES = ['sleep', 'energy', 'mood'];
@@ -85,57 +67,7 @@ function validate(body) {
   return { row: row };
 }
 
-/* ---------- 写库：同一天有就改，没有就新增 ---------- */
-
-async function findOne(date) {
-  var res = await fetch(BASE + '/checkins?select=' + SELECT + '&date=eq.' + date, {
-    method: 'GET',
-    headers: authHeaders()
-  });
-  if (!res.ok) throw new Error('查询当天记录失败（网关返回 ' + res.status + '）');
-  var rows = await res.json();
-  return rows && rows.length ? rows[0] : null;
-}
-
-// checkins.date 外键引用 plan_days(date)（见 db/schema.sql 第 30 行）：
-// 没有计划的那天打不了卡。这里提前查一次，把数据库原本的英文外键报错
-// 换成一句人能看懂的中文，不然前端只能拿到 500 和一堆英文。
-async function planDayExists(date) {
-  var res = await fetch(BASE + '/plan_days?select=date&date=eq.' + date, {
-    method: 'GET',
-    headers: authHeaders()
-  });
-  if (!res.ok) throw new Error('查询当天计划失败（网关返回 ' + res.status + '）');
-  var rows = await res.json();
-  return Boolean(rows && rows.length);
-}
-
-async function insertRow(row) {
-  row.created_at = new Date().toISOString();
-  var res = await fetch(BASE + '/checkins?select=' + SELECT, {
-    method: 'POST',
-    headers: authHeaders({ Prefer: 'return=representation' }),
-    body: JSON.stringify(row)
-  });
-  var text = await res.text();
-  if (!res.ok) throw new Error('新增失败（网关返回 ' + res.status + '）：' + text.slice(0, 200));
-  var rows = JSON.parse(text);
-  return rows && rows.length ? rows[0] : row;
-}
-
-async function updateRow(date, row) {
-  var res = await fetch(BASE + '/checkins?select=' + SELECT + '&date=eq.' + date, {
-    method: 'PATCH',
-    headers: authHeaders({ Prefer: 'return=representation' }),
-    body: JSON.stringify(row)
-  });
-  var text = await res.text();
-  if (!res.ok) throw new Error('更新失败（网关返回 ' + res.status + '）：' + text.slice(0, 200));
-  var rows = JSON.parse(text);
-  return rows && rows.length ? rows[0] : row;
-}
-
-/* ---------- HTTP 服务 ---------- */
+/* ---------- HTTP 入口 ---------- */
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -187,7 +119,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (!TOKEN) {
+  if (!gw.hasToken()) {
     fail(res, 500, 'MISSING_TOKEN',
       '服务端没配访问凭证。到 CloudBase 控制台 → 环境 → 访问凭证复制 API 密钥，填进本函数的环境变量 TCB_ACCESS_TOKEN。');
     return;
@@ -208,21 +140,22 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    var existing = await findOne(checked.row.date);
+    var existing = await checkinsRepo.findByDate(checked.row.date);
     var saved, action;
     if (existing) {
-      saved = await updateRow(checked.row.date, checked.row);
+      saved = await checkinsRepo.update(checked.row.date, checked.row);
       action = 'updated';
     } else {
       // 新增前先看这天有没有计划。没有就直接挡掉并说明原因，
       // 别让数据库抛英文外键错误、前端拿到 500 白屏。
-      if (!(await planDayExists(checked.row.date))) {
+      // 注意：plan_days 的查询全项目只有 planDaysRepository 一份，这里直接调它
+      if (!(await planDaysRepo.existsByDate(checked.row.date))) {
         fail(res, 400, 'PLAN_DAY_NOT_FOUND',
           checked.row.date + ' 这天还没有计划（plan_days 表里没有这一天）。' +
           '体检记录要挂在某一天的计划上，先写计划再打卡。');
         return;
       }
-      saved = await insertRow(checked.row);
+      saved = await checkinsRepo.insert(checked.row);
       action = 'created';
     }
 
