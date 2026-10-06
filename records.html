@@ -70,18 +70,18 @@
           </div>
 
           <div class="card">
-            <h2>云端检查台</h2>
-            <p class="muted" style="margin:0 0 8px">健康接口：<span id="healthLine">检测中…</span></p>
+            <h2>这个页面的数据是哪来的</h2>
+            <p class="muted" style="margin:0 0 8px">云上的接口现在通不通：<span id="healthLine">检测中…</span></p>
             <p class="muted" style="margin:0 0 8px">数据来源：<span id="srcLine">—</span></p>
             <p class="muted" style="margin:0 0 12px">数据读取时间：<span id="fetchTime">—</span></p>
             <div>
               <p class="muted" style="margin:0 0 8px">
-                写入测试：给 <b id="writeDate">—</b> 写一次体检，写完刷新页面看它还在不在。
+                试试写入：给 <b id="writeDate">—</b> 记一次体检，三项各填 1 到 5，写完刷新页面看它还在不在。
               </p>
               <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-                <label class="muted">睡 <input id="wSleep" type="number" min="1" max="5" value="4"></label>
-                <label class="muted">精力 <input id="wEnergy" type="number" min="1" max="5" value="4"></label>
-                <label class="muted">情绪 <input id="wMood" type="number" min="1" max="5" value="4"></label>
+                <label class="muted">睡 <input id="wSleep" type="number" min="1" max="5" placeholder="1-5"></label>
+                <label class="muted">精力 <input id="wEnergy" type="number" min="1" max="5" placeholder="1-5"></label>
+                <label class="muted">情绪 <input id="wMood" type="number" min="1" max="5" placeholder="1-5"></label>
               </div>
               <button id="wBtn" class="btn">写入一次体检</button>
               <p class="muted" id="wResult" style="margin:8px 0 0"></p>
@@ -600,12 +600,19 @@
 
       btn.addEventListener('click', function () {
         var res = document.getElementById('wResult');
+        var s = document.getElementById('wSleep').value;
+        var e3 = document.getElementById('wEnergy').value;
+        var m = document.getElementById('wMood').value;
+        if (s === '' || e3 === '' || m === '') {
+          res.textContent = '三项都要填，每项填 1 到 5。';
+          return;
+        }
         res.textContent = '写入中…';
         var body = {
           date: date,
-          sleep: Number(document.getElementById('wSleep').value),
-          energy: Number(document.getElementById('wEnergy').value),
-          mood: Number(document.getElementById('wMood').value)
+          sleep: Number(s),
+          energy: Number(e3),
+          mood: Number(m)
         };
         fetch(API_BASE + '/api/checkins', {
           method: 'POST',
