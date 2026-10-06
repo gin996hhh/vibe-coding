@@ -106,18 +106,6 @@ async function existsByDate(date) {
   return Boolean(r.rows && r.rows.length);
 }
 
-/**
- * 删某一天：先确认这天存在（不存在返回 false，让接口层报 404），
- * 存在才真正发删除。
- * 是硬删除，不是软删——删了就找不回来，接口层的确认提示要说清这一点。
- */
-async function deleteByDate(date) {
-  var exists = await existsByDate(date);
-  if (!exists) return false;
-  await gw.deleteRows({ table: TABLE, params: 'date=eq.' + encodeURIComponent(date) });
-  return true;
-}
-
 module.exports = {
   TABLE: TABLE,
   SELECT: SELECT,
@@ -126,6 +114,5 @@ module.exports = {
   countAll: countAll,
   list: list,
   findByDate: findByDate,
-  existsByDate: existsByDate,
-  deleteByDate: deleteByDate
+  existsByDate: existsByDate
 };

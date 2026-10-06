@@ -74,25 +74,10 @@ function parse(text) {
   }
 }
 
-/**
- * 拉一批体检记录（供 plan-days 列表把体检并进每一天）
- *
- * 为什么不一天一天查：列表有几十天时，一天一次请求要发几十次，
- * 慢而且容易把网关限流打满。这里一次拉回来，上层自己按日期配。
- */
-async function listAll(limit) {
-  var n = Number(limit) || 100;
-  if (n < 1) n = 1;
-  if (n > 500) n = 500;
-  var r = await gw.getRows({ table: TABLE, params: 'select=' + SELECT + '&limit=' + n });
-  return r.rows || [];
-}
-
 module.exports = {
   TABLE: TABLE,
   SELECT: SELECT,
   findByDate: findByDate,
-  listAll: listAll,
   insert: insert,
   update: update
 };

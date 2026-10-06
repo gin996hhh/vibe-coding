@@ -82,34 +82,6 @@ a { color: var(--sky); }
 }
 .badge.on { color: var(--ember); border-color: rgba(240, 166, 92, .45); }
 
-/* 主按钮：全站统一的「去做」动作（Day 20 加，记录台写入测试用） */
-.btn {
-  font: inherit;
-  font-size: 14px;
-  color: var(--ink);
-  background: var(--sky-deep);
-  border: 1px solid var(--sky-deep);
-  border-radius: var(--r);
-  padding: 7px 14px;
-  margin-top: 10px;
-  cursor: pointer;
-}
-.btn:hover { background: var(--sky-hi); border-color: var(--sky-hi); }
-.btn:disabled { background: var(--card); border-color: var(--line); color: var(--ink-3); cursor: not-allowed; }
-
-/* 检查台里的数字输入（睡/精力/情绪） */
-#writeBox input,
-.card input[type="number"] {
-  width: 56px;
-  font: inherit;
-  font-size: 14px;
-  color: var(--ink);
-  background: var(--night-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 5px 8px;
-}
-
 /* ---------- 顶部导航 ---------- */
 
 .nav {
