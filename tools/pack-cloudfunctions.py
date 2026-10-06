@@ -19,7 +19,9 @@ import hashlib
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CF = os.path.join(ROOT, 'cloudfunctions')
 SHARED_DIR = os.path.join(CF, '_shared')
-DESKTOP = r'C:\Users\gin99\Desktop'
+# 构建产物不落桌面（Victor 2026-10-06 要求：桌面不摆中间文件）
+# 打包结果统一进项目下的 部署包/，需要上传时从那里取。
+DESKTOP = os.path.join(ROOT, '部署包')
 
 BASE_FILES = ['index.js', 'package.json', 'scf_bootstrap', 'cloudbaserc.json']
 
