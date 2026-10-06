@@ -123,8 +123,31 @@ function hasToken() {
   return Boolean(TOKEN);
 }
 
+/**
+ * 删：发 DELETE。网关没返回成功就抛错（同 getRows 的错误风格，
+ * 错上带 status / text，方便上层分辨原因）。
+ * PostgREST 风格的网关用筛选条件指删除对象，例如 date=eq.2026-10-02。
+ */
+async function deleteRows(opts) {
+  var r = await send({
+    table: opts.table,
+    params: opts.params,
+    method: 'DELETE'
+  });
+
+  if (!r.ok) {
+    var err = new Error('网关返回 ' + r.status + '：' + reasonFrom(r.text));
+    err.status = r.status;
+    err.text = r.text;
+    throw err;
+  }
+
+  return true;
+}
+
 module.exports = {
   getRows: getRows,
+  deleteRows: deleteRows,
   send: send,
   hasToken: hasToken,
   reasonFrom: reasonFrom

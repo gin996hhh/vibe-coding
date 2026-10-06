@@ -326,12 +326,42 @@
         }
         head.appendChild(dots);
 
-        // 删除：这条进回收站，不是消失
+        // 删除：云上数据调接口真删（找不回来）；本机数据进回收站（能还原）
         var delBtn = el('button', 'rec-del', '删除');
-        delBtn.title = '这一天进回收站，想拿回来还能拿回来';
+        delBtn.title = cloudRecords
+          ? '删掉云上这一天，删了就找不回来'
+          : '这一天进回收站，想拿回来还能拿回来';
         delBtn.setAttribute('data-date', d.date);
         delBtn.addEventListener('click', function () {
           var dt = this.getAttribute('data-date');
+          var btn = this;
+
+          /* 云上数据：走 DELETE /api/plan-days，是硬删除 */
+          if (cloudRecords) {
+            if (!window.confirm('把云上 ' + dt + ' 这一天彻底删掉？\n删了就找不回来了。')) return;
+            btn.disabled = true;
+            btn.textContent = '删除中…';
+            fetch(API_BASE + '/api/plan-days?date=' + encodeURIComponent(dt), { method: 'DELETE' })
+              .then(function (r) { return r.json(); })
+              .then(function (j) {
+                if (j && j.ok) {
+                  cloudRecords = cloudRecords.filter(function (x) { return x.date !== dt; });
+                  render();
+                } else {
+                  window.alert('删除失败：' + (j && j.error && j.error.message ? j.error.message : '接口返回异常'));
+                  btn.disabled = false;
+                  btn.textContent = '删除';
+                }
+              })
+              .catch(function (e) {
+                window.alert('删除失败：网络不通（' + (e && e.message ? e.message : e) + '）');
+                btn.disabled = false;
+                btn.textContent = '删除';
+              });
+            return;
+          }
+
+          /* 本机数据：进回收站，能还原 */
           if (!window.confirm('把 ' + dt + ' 这一天放进回收站？\n回收站里还能还原。')) return;
           Store.deleteRecord(dt);
           render();
@@ -523,8 +553,17 @@
       document.getElementById('content').style.display = 'block';
 
       if (!filterBound) { bindFilter(); filterBound = true; }
-      if (!trashBound) bindTrash();
-      renderTrash();
+
+      /* 回收站只管本机数据：云上数据时是硬删除，不进回收站，
+         所以云端模式下整张卡藏起来，免得让人以为能还原。 */
+      var trashCardEl = document.getElementById('trashCard');
+      if (cloudRecords) {
+        trashCardEl.style.display = 'none';
+      } else {
+        trashCardEl.style.display = '';
+        if (!trashBound) bindTrash();
+        renderTrash();
+      }
 
       // 数据来源写在页面上，一眼能看出来这屏数字是云端给的还是本地的
       var srcEl = document.getElementById('srcLine');

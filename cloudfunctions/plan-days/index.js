@@ -75,7 +75,7 @@ function fail(res, status, code, message) {
 function send(res, code, body) {
   // CORS 的允许来源由网关层统一配（单一白名单域名）。代码层再设一层会拼成
   // "https://xxx,*" 畸形值被浏览器拦掉（Day 20 踩过），这里只保留方法和头。
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.statusCode = code;
@@ -84,16 +84,46 @@ function send(res, code, body) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.statusCode = 204;
     res.end();
     return;
   }
 
-  // 只接受 GET，别的明确挡掉，别让它悄悄走成功分支
+  /* ---------- DELETE /api/plan-days?date=YYYY-MM-DD ---------- */
+  if (req.method === 'DELETE') {
+    var du = new URL(req.url, 'http://localhost');
+    var dDate = du.searchParams.get('date');
+    var dm = du.pathname.replace(/\/+$/, '').match(/\/api\/plan-days\/(\d{4}-\d{2}-\d{2})$/);
+    if (dm) dDate = dm[1];
+
+    if (!dDate || !DATE_RE.test(dDate)) {
+      fail(res, 400, 'INVALID_DATE',
+        '删除要指定日期：?date=YYYY-MM-DD 或路径 /api/plan-days/YYYY-MM-DD，你给的是「' + (dDate || '') + '」');
+      return;
+    }
+    if (!gw.hasToken()) {
+      fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
+      return;
+    }
+    try {
+      var removed = await planDaysRepo.deleteByDate(dDate);
+      if (!removed) {
+        fail(res, 404, 'DATE_NOT_FOUND', dDate + ' 这天在 plan_days 表里不存在，没什么可删的。');
+        return;
+      }
+      send(res, 200, { ok: true, data: { date: dDate, deleted: true } });
+    } catch (e) {
+      console.error('[plan-days] 删除失败：', e && e.message ? e.message : String(e));
+      fail(res, 500, 'PLAN_DAYS_DELETE_FAILED', '删除这一天的记录失败，原因已记在云函数日志里。');
+    }
+    return;
+  }
+
+  // 只接受 GET 和 DELETE，别的明确挡掉，别让它悄悄走成功分支
   if (req.method !== 'GET') {
-    fail(res, 405, 'METHOD_NOT_ALLOWED', '这个接口只接受 GET，你发的是 ' + req.method);
+    fail(res, 405, 'METHOD_NOT_ALLOWED', '这个接口只接受 GET 和 DELETE，你发的是 ' + req.method);
     return;
   }
 
