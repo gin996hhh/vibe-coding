@@ -73,7 +73,8 @@ function fail(res, status, code, message) {
 }
 
 function send(res, code, body) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS 的允许来源由网关层统一配（单一白名单域名）。代码层再设一层会拼成
+  // "https://xxx,*" 畸形值被浏览器拦掉（Day 20 踩过），这里只保留方法和头。
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -83,7 +84,6 @@ function send(res, code, body) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.statusCode = 204;

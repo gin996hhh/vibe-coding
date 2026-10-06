@@ -91,6 +91,7 @@ def break_table(filename, text):
 
 a = build('plan-days.zip', 'plan-days')
 b = build('checkins.zip', 'checkins')
+build('health.zip', 'health')   # health 不用共享层，但它的代码也会改（如 CORS），一样要能出包
 build('plan-days-错误测试版.zip', 'plan-days', break_table)
 
 # —— 断言 2：两个包里的共享文件必须逐字节一致 ——

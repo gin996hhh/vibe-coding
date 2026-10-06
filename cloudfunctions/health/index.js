@@ -11,8 +11,9 @@
  * 端口从环境变量 PORT 读（CloudBase 注入），取不到就兜底 9000。
  *
  * 两个额外处理：
- * 1. Access-Control-Allow-Origin: '*' —— 前端在另一个域名（GitHub Pages）
- *    用 fetch 访问这里时，浏览器会先拦跨域，没有这个头就拿不到结果。
+ * 1. CORS 跨域头不在代码里设 —— 网关层（HTTP 访问服务的跨域设置）已经配了
+ *    允许来源＝静态托管域名。代码层再设一个（哪怕是 *），两层会拼成
+ *    "https://xxx,*" 这种畸形值，浏览器不认，直接拦掉整个请求（Day 20 踩过）。
  * 2. OPTIONS 直接返回 204 —— 浏览器的 CORS 预检请求，不处理的话真正的
  *    请求会被挡掉。
  */
@@ -20,7 +21,6 @@ const http = require('node:http');
 const PORT = process.env.PORT || 9000;
 
 const server = http.createServer((req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   // CORS 预检，直接放行

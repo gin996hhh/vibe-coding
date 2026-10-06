@@ -39,6 +39,7 @@
       <div class="head-side">
         <span class="badge" id="goalBadge" style="display:none"></span>
         <span class="badge" id="demoBadge" style="display:none"></span>
+        <span class="badge" id="healthBadge" style="display:none"></span>
         <span class="badge" id="cloudBadge" style="display:none"></span>
       </div>
     </header>
@@ -66,6 +67,25 @@
               </div>
             </div>
             <p class="muted" id="ratioLine" style="margin-bottom:0"></p>
+          </div>
+
+          <div class="card">
+            <h2>云端检查台</h2>
+            <p class="muted" style="margin:0 0 8px">健康接口：<span id="healthLine">检测中…</span></p>
+            <p class="muted" style="margin:0 0 8px">数据来源：<span id="srcLine">—</span></p>
+            <p class="muted" style="margin:0 0 12px">数据读取时间：<span id="fetchTime">—</span></p>
+            <div>
+              <p class="muted" style="margin:0 0 8px">
+                写入测试：给 <b id="writeDate">—</b> 写一次体检，写完刷新页面看它还在不在。
+              </p>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+                <label class="muted">睡 <input id="wSleep" type="number" min="1" max="5" value="4"></label>
+                <label class="muted">精力 <input id="wEnergy" type="number" min="1" max="5" value="4"></label>
+                <label class="muted">情绪 <input id="wMood" type="number" min="1" max="5" value="4"></label>
+              </div>
+              <button id="wBtn" class="btn">写入一次体检</button>
+              <p class="muted" id="wResult" style="margin:8px 0 0"></p>
+            </div>
           </div>
 
           <div class="card" id="trashCard">
@@ -132,7 +152,6 @@
   <script src="js/store.js"></script>
   <script src="js/growth.js"></script>
   <script src="js/records.js"></script>
-  <script src="js/mock.js"></script>
   <script>
   (function () {
     /* =========================================================
@@ -149,11 +168,6 @@
     var hasGoal = false;
     var dayCount = 0;
 
-    /* ---------- 示例模式（Day 8 板块③） ----------
-       真数据一条都没有时，用示例数据把界面喂饱，页头明确标出「示例」。
-       本页只读不写，所以示例数据在这里不存在污染问题。 */
-    var MOCK = null;
-
     /* ---------- 云端数据源（Day 17） ----------
        真实数据已经搬到云上的 plan_days 表了。本页先读接口 GET /api/plan-days，
        按契约返回 { ok, data:{ total, matched, items:[...] } }；
@@ -162,6 +176,11 @@
     var API_BASE = 'https://victor-1a2b3c4d-d5fmr5rn115087c8-1499478684.ap-shanghai.app.tcloudbase.com';
     var cloudRecords = null;
     var cloudNote = '';
+
+    /* ---------- 健康接口（Day 20） ----------
+       只用来在页面上显示"链路通不通"，取不到也不影响本页出数据。 */
+    var healthOK = false;
+    var healthNote = '';
 
     // 接口给的一天 → 记录台认的一条记录（字段名按 records.js 的约定转一遍）
     function apiMap(it) {
@@ -199,8 +218,23 @@
         });
     }
 
+    // 健康接口 GET /api/health：返回 { ok:true, service, time }
+    function loadHealth() {
+      return fetch(API_BASE + '/api/health', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          healthOK = !!(j && j.ok === true);
+          healthNote = healthOK
+            ? 'ok（服务端时间 ' + (j.time || '') + '）'
+            : '返回异常：' + JSON.stringify(j);
+        })
+        .catch(function (e) {
+          healthOK = false;
+          healthNote = '没取到（' + (e && e.message ? e.message : '网络不通') + '）';
+        });
+    }
+
     function allRecords() {
-      if (MOCK) return MOCK.records;
       if (cloudRecords) return cloudRecords;
       return Store.getRecords() || [];
     }
@@ -292,19 +326,17 @@
         }
         head.appendChild(dots);
 
-        // 删除：这条进回收站，不是消失（示例数据不给删，它本来就不在本地）
-        if (!MOCK) {
-          var delBtn = el('button', 'rec-del', '删除');
-          delBtn.title = '这一天进回收站，想拿回来还能拿回来';
-          delBtn.setAttribute('data-date', d.date);
-          delBtn.addEventListener('click', function () {
-            var dt = this.getAttribute('data-date');
-            if (!window.confirm('把 ' + dt + ' 这一天放进回收站？\n回收站里还能还原。')) return;
-            Store.deleteRecord(dt);
-            render();
-          });
-          head.appendChild(delBtn);
-        }
+        // 删除：这条进回收站，不是消失
+        var delBtn = el('button', 'rec-del', '删除');
+        delBtn.title = '这一天进回收站，想拿回来还能拿回来';
+        delBtn.setAttribute('data-date', d.date);
+        delBtn.addEventListener('click', function () {
+          var dt = this.getAttribute('data-date');
+          if (!window.confirm('把 ' + dt + ' 这一天放进回收站？\n回收站里还能还原。')) return;
+          Store.deleteRecord(dt);
+          render();
+        });
+        head.appendChild(delBtn);
         box.appendChild(head);
 
         // 那天的两条锚点
@@ -340,8 +372,7 @@
     }
 
     /* ---------- 回收站 ----------
-       删掉的每一天都躺在这里：能原样还原，也能彻底扔。
-       示例数据不进回收站（它本来就不在浏览器里），所以示例模式下整块隐藏。 */
+       删掉的每一天都躺在这里：能原样还原，也能彻底扔。 */
 
     var trashBound = false;
 
@@ -351,7 +382,6 @@
       var chip = document.getElementById('trashChip');
       var clearBtn = document.getElementById('trashClearBtn');
 
-      if (MOCK) { card.style.display = 'none'; return; }
       card.style.display = '';
 
       var list = Store.getTrash() || [];
@@ -468,19 +498,6 @@
       var goal = Store.getGoal();
       hasGoal = !!(goal && goal.content);
 
-      /* ---------- 示例模式 ----------
-         ?mock=1 强制开 ／ ?mock=0 强制关 ／ 默认：一条真实记录都没有时自动开。 */
-      var qMock = null;
-      try { qMock = new URLSearchParams(location.search).get('mock'); } catch (e) { qMock = null; }
-      var realDays = Records.buildDays(allRecords(), today);
-      MOCK = null;
-      if (qMock === '1') {
-        MOCK = Mock.build(today);
-      } else if (qMock !== '0' && !hasGoal && realDays.length === 0) {
-        MOCK = Mock.build(today);
-      }
-      if (MOCK) { goal = MOCK.goal; hasGoal = true; }
-
       if (forced === 'error' || !storageOK) {
         renderState('error');
         document.getElementById('content').style.display = 'none';
@@ -493,7 +510,9 @@
 
       // 没目标 = 还没开始，走引导态；有目标但一条记录都没有 = 刚清过空。
       // 清过空也照样显示内容区，否则回收站被一起藏起来，删掉的东西就点不回来了。
-      if (forced === 'empty' || !hasGoal) {
+      // Day 20：检查台是给任何人打开链接看的，不能因为"这个浏览器里没存过目标"就把云端数据藏起来。
+      // 判据改成：本地没目标 **且** 云端也没取到数据 —— 两个都没有，才算真空。
+      if (forced === 'empty' || (!hasGoal && !cloudRecords)) {
         renderState('empty');
         document.getElementById('content').style.display = 'none';
         finishDiag();
@@ -507,9 +526,31 @@
       if (!trashBound) bindTrash();
       renderTrash();
 
-      if (MOCK) showMockBadge();
-
       // 数据来源写在页面上，一眼能看出来这屏数字是云端给的还是本地的
+      var srcEl = document.getElementById('srcLine');
+      if (srcEl) srcEl.textContent = cloudRecords ? API_BASE + '/api/plan-days' : '接口没取到，已用本地数据';
+
+      // 健康状态：页头一个徽标，检查台卡片里一行具体返回
+      var hbEl = document.getElementById('healthBadge');
+      if (hbEl && healthNote) {
+        hbEl.textContent = healthOK ? '接口正常' : '接口不可用';
+        hbEl.className = 'badge' + (healthOK ? ' on' : '');
+        hbEl.style.display = 'inline-block';
+        hbEl.title = healthNote;
+      }
+      var hlEl = document.getElementById('healthLine');
+      if (hlEl) hlEl.textContent = healthNote || '—';
+
+      // 数据读取时间：这一屏数据是从云端拿下来的时刻，不是数据被改动的时刻
+      var ftEl = document.getElementById('fetchTime');
+      if (ftEl && cloudRecords) {
+        var now = new Date();
+        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+        ftEl.textContent = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) +
+          ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+      }
+
+      if (!writeBound) { bindWrite(); writeBound = true; }
       var cbEl = document.getElementById('cloudBadge');
       if (cloudNote) {
         cbEl.textContent = cloudRecords ? '数据来自云端接口：' + cloudNote : cloudNote;
@@ -542,17 +583,45 @@
       finishDiag();
     }
 
-    /* ---------- 示例数据徽标 ---------- */
+    /* ---------- 写入测试（Day 20） ----------
+       点一次就往 checkins 表写一条体检，用来证明"公网能写、写完还在"。
+       日期取云端返回的第一天（那天一定有 plan，才写得进去）。
+       写完不自动刷新——自己刷新一次，看到数字还在，才是真写进库了。 */
 
-    function showMockBadge() {
-      var mb = document.getElementById('demoBadge');
-      if (!mb) return;
-      mb.textContent = '示例数据 · 开始写我自己的';
-      mb.className = 'badge on';
-      mb.style.display = 'inline-block';
-      mb.style.cursor = 'pointer';
-      mb.title = '示例数据只在页面上显示，不会写进你的记录；你有了真实数据，它自动消失。';
-      mb.addEventListener('click', function () { location.href = 'index.html'; });
+    var writeBound = false;
+
+    function bindWrite() {
+      var btn = document.getElementById('wBtn');
+      if (!btn) return;
+      var date = (cloudRecords && cloudRecords.length) ? cloudRecords[0].date : null;
+      var dEl = document.getElementById('writeDate');
+      if (dEl) dEl.textContent = date || '（没取到日期）';
+      if (!date) { btn.disabled = true; return; }
+
+      btn.addEventListener('click', function () {
+        var res = document.getElementById('wResult');
+        res.textContent = '写入中…';
+        var body = {
+          date: date,
+          sleep: Number(document.getElementById('wSleep').value),
+          energy: Number(document.getElementById('wEnergy').value),
+          mood: Number(document.getElementById('wMood').value)
+        };
+        fetch(API_BASE + '/api/checkins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(body)
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            res.textContent = (j && j.ok)
+              ? '写入成功：' + JSON.stringify(j.data || j)
+              : '写入失败：' + ((j && j.error && j.error.message) || '接口没说原因');
+          })
+          .catch(function (e) {
+            res.textContent = '写入失败：' + (e && e.message ? e.message : '网络不通');
+          });
+      });
     }
 
     function finishDiag() {
@@ -560,8 +629,8 @@
       d.push('存储' + (storageOK ? '可用' : '被禁'));
       d.push('目标' + (hasGoal ? '已读到' : '未读到'));
       d.push('记录' + dayCount + '天');
-      if (MOCK) d.push('示例数据=开');
       if (cloudNote) d.push(cloudNote);
+      if (healthNote) d.push(healthNote);
       if (forced) d.push('演示状态=' + forced);
       if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
       var diagEl = document.getElementById('diag');
@@ -592,7 +661,7 @@
     } else {
       renderState('loading');
       // 先拉云端，拉完再渲染；接口慢或挂了也不会卡住页面（loadCloud 自己兜底）
-      loadCloud().then(function () { setTimeout(render, 450); });
+      Promise.all([loadCloud(), loadHealth()]).then(function () { setTimeout(render, 450); });
     }
   })();
   </script>
