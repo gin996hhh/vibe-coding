@@ -190,19 +190,34 @@ const server = http.createServer(async (req, res) => {
     var total = await planDaysRepo.countAll();
     var listRes = await planDaysRepo.list({ q: q, status: status, days: days, limit: limit });
 
+    // 体检在另一张表。列表模式以前不带体检，结果页面写了体检却看不出来
+    // （Day 20 实测：写入成功但列表无变化）。这里一次把体检拉回来按日期配上。
+    var ckMap = {};
+    try {
+      var cks = await checkinsRepo.listAll(500);
+      cks.forEach(function (c) {
+        ckMap[toDate(c.date)] = { sleep: c.sleep, energy: c.energy, mood: c.mood };
+      });
+    } catch (e) {
+      // 体检读不出来不该让整个列表挂掉：没有体检就当这天没打卡
+      console.error('[plan-days] 拉体检失败，列表按没有体检处理：', e && e.message ? e.message : String(e));
+    }
+
     send(res, 200, {
       ok: true,
       data: {
         total: total,
         matched: listRes.matched,
         items: listRes.rows.map(function (r) {
+          var d = toDate(r.date);
           return {
-            date: toDate(r.date),
+            date: d,
             morning_anchor: r.morning_anchor,
             morning_done: r.morning_done,
             evening_anchor: r.evening_anchor,
             evening_done: r.evening_done,
-            review: r.review
+            review: r.review,
+            checkin: ckMap[d] || null
           };
         })
       }
