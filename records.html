@@ -218,14 +218,16 @@
         });
     }
 
-    // 健康接口 GET /api/health：返回 { ok:true, service, time }
+    // 健康接口 GET /api/health：返回 { ok:true, data:{ service, time } }
+    // 取时间时两种形状都认：新版在 data 里，旧版裸在顶层，避免上线先后不一致导致取不到。
     function loadHealth() {
       return fetch(API_BASE + '/api/health', { headers: { Accept: 'application/json' } })
         .then(function (r) { return r.json(); })
         .then(function (j) {
           healthOK = !!(j && j.ok === true);
+          var t = j && ((j.data && j.data.time) || j.time);
           healthNote = healthOK
-            ? 'ok（服务端时间 ' + (j.time || '') + '）'
+            ? 'ok（服务端时间 ' + (t || '') + '）'
             : '返回异常：' + JSON.stringify(j);
         })
         .catch(function (e) {

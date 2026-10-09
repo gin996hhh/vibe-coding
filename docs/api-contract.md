@@ -152,6 +152,10 @@ GET /api/plan-days
 { "ok": true, "data": { "total": 2, "matched": 1, "items": [ { "date": "2026-10-02", "morning_anchor": "...", "morning_done": true, "evening_anchor": "...", "evening_done": false, "review": null } ] } }
 ```
 
+2026-10-06 起列表的每一项额外带了 checkin 字段（那天填过体检就有，没填是 null），
+形状与 §7 单天返回里的 checkin 一致。记录台靠这个字段在列表上直接显示体检，
+所以列表和单天现在都合并了体检，不用二次请求。
+
 失败：
 - `INVALID_STATUS`：status 不在允许的四档里
 - `INVALID_LIMIT`：limit 不是 1 到 100 的整数（Day 17 余力加练加的参数，1 到 100，不给就全返回）
@@ -194,6 +198,29 @@ GET /api/stats
 
 失败：
 - `STATS_FAILED`
+
+
+## 9. 删除某一天（连同它的体检）
+
+状态：已实现（Day 20 补做，2026-10-06 部署并验证通过）
+
+DELETE /api/plan-days?date=2026-10-06
+
+查询参数：date（必填，要删的那一天）
+
+说明：先查这一天在 plan_days 里存不存在，不存在就返回中文错误，不静默成功；存在则删掉这一天，checkins 表里挂在这一天的体检一起删。
+
+响应（成功）：
+```json
+{ "ok": true, "data": { "date": "2026-10-06", "deleted": true } }
+```
+
+失败：
+- `MISSING_DATE`：没给 date
+- `DATE_NOT_FOUND`：「这天在 plan_days 表里不存在，没什么可删的」
+- `DELETE_FAILED`：删除没成功，附带原始原因
+
+注：日期走查询串而不是路径形式，原因见 §7 的实测补记（网关没开子路径透传）。这一节是 Day 22 之前就已经上线的实现，补登记是为了让契约跟得上代码；Day 22 加了 PATCH 之后，要按本节同样的格式一并登记进来。
 
 
 ## 表结构（Day 16 据此建表，从本契约推导）

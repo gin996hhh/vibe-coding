@@ -30,12 +30,17 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // 响应形状与契约一致：所有接口统一 { ok, data }，health 也不例外。
+  // Day 21 验收时发现这里少了 data 一层（service / time 裸在顶层），
+  // 和其它接口不同形，前端要为它单独写取值分支，所以补回来。
   res.statusCode = 200;
   res.end(
     JSON.stringify({
       ok: true,
-      service: 'anchor',
-      time: new Date().toISOString()
+      data: {
+        service: 'anchor',
+        time: new Date().toISOString()
+      }
     })
   );
 });
