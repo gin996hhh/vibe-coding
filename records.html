@@ -214,6 +214,19 @@
         });
     }
 
+    /* ---------- 三类错误怎么说人话（Day 23） ----------
+       服务端给的错已经是中文，可以直接显示；浏览器自己抛的网络错误是英文
+       （Failed to fetch 之类），原样弹给用户等于甩英文堆栈。这里分一下：
+       认出是网络类就换成中文提示，原始报错只进控制台留给排查。 */
+    function humanError(e, fallback) {
+      var m = e && e.message ? e.message : String(e);
+      if (/fetch|network|timeout|abort|Failed to/i.test(m)) {
+        console.error('[records] 网络类错误（原文留给排查）：', m);
+        return fallback || '网络不通，稍后再试一次';
+      }
+      return m;
+    }
+
     /** 改完/删完直接改本地这一条再重画，省一次重新拉列表 */
     function findCloud(date) {
       for (var i = 0; i < cloudRecords.length; i++) {
@@ -238,7 +251,7 @@
         })
         .catch(function (e) {
           cloudRecords = null;
-          cloudNote = '云端没取到（' + (e && e.message ? e.message : '网络不通') + '），已用本地数据';
+          cloudNote = '云端没取到（' + humanError(e, '网络不通') + '），已用本地数据';
         });
     }
 
@@ -256,7 +269,7 @@
         })
         .catch(function (e) {
           healthOK = false;
-          healthNote = '没取到（' + (e && e.message ? e.message : '网络不通') + '）';
+          healthNote = '没取到（' + humanError(e, '网络不通') + '）';
         });
     }
 
@@ -380,7 +393,7 @@
                 }
               })
               .catch(function (e) {
-                window.alert('删除失败：网络不通（' + (e && e.message ? e.message : e) + '）');
+                window.alert('删除失败：' + humanError(e, '网络不通，稍后再试一次'));
                 btn.disabled = false;
                 btn.textContent = '删除';
               });
@@ -441,7 +454,7 @@
                   render();
                 })
                 .catch(function (e) {
-                  window.alert('改失败：' + (e && e.message ? e.message : e));
+                  window.alert('改失败：' + humanError(e, '网络不通，稍后再试一次'));
                   btn.disabled = false;
                 });
             });
@@ -466,7 +479,7 @@
                 render();
               })
               .catch(function (e) {
-                window.alert('保存失败：' + (e && e.message ? e.message : e));
+                window.alert('保存失败：' + humanError(e, '网络不通，稍后再试一次'));
                 btn.disabled = false;
               });
           });
@@ -493,7 +506,7 @@
                   }
                 })
                 .catch(function (e) {
-                  window.alert('删除失败：网络不通（' + (e && e.message ? e.message : e) + '）');
+                  window.alert('删除失败：' + humanError(e, '网络不通，稍后再试一次'));
                   btn.disabled = false;
                   btn.textContent = '删体检';
                 });

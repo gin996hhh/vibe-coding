@@ -1,6 +1,8 @@
 # 本地私密文件，永不进仓库
 .env
 .env.*
+# 例外：模板要入库，它只有字段名没有真值（Day 23）
+!.env.example
 
 # WorkBuddy 工作区记忆（含个人笔记与对话记忆，不入公开仓库）
 # 注意：只排除 .workbuddy 下的内容，放行 skills/——项目级 Skill 要跟着仓库走
