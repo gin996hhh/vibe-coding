@@ -180,14 +180,17 @@ const server = http.createServer(async (req, res) => {
       saved = await checkinsRepo.update(checked.row.date, checked.row);
       action = 'updated';
     } else {
-      // 新增前先看这天有没有计划。没有就直接挡掉并说明原因，
-      // 别让数据库抛英文外键错误、前端拿到 500 白屏。
-      // 注意：plan_days 的查询全项目只有 planDaysRepository 一份，这里直接调它
+      // 新增前先看这天有没有计划。没有就自动补一条空计划行（Day 24 修复），
+      // 新用户任何一天都能直接记体检，不再被 PLAN_DAY_NOT_FOUND 挡在第一步。
+      // 空计划行的含义：这天没写锚点，但真实存在过。锚点内容想补再用 PATCH。
+      // plan_days 的写入全项目只有 planDaysRepository 一份，这里直接调它。
       if (!(await planDaysRepo.existsByDate(checked.row.date))) {
-        fail(res, 400, 'PLAN_DAY_NOT_FOUND',
-          checked.row.date + ' 这天还没有计划（plan_days 表里没有这一天）。' +
-          '体检记录要挂在某一天的计划上，先写计划再打卡。');
-        return;
+        try {
+          await planDaysRepo.insertByDate(checked.row.date, {});
+        } catch (e) {
+          // 并发下另一路刚好先建了（唯一键冲突）不算失败，接着写体检
+          if (!/conflict|duplicate|23505|409/i.test(e.message)) throw e;
+        }
       }
       saved = await checkinsRepo.insert(checked.row);
       action = 'created';

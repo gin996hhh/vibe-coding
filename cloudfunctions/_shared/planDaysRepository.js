@@ -119,6 +119,37 @@ async function deleteByDate(date) {
 }
 
 /**
+ * 新建某一天的计划（Day 24，契约第 4 条 POST）。
+ * fields 只认 morning_anchor / evening_anchor 两个文字字段，
+ * 完成状态和复盘不在这里给——新建的一天当然是没做、没复盘。
+ * 已存在时网关会报唯一键冲突，由入口层转成中文提示，这里只管发和解析。
+ */
+async function insertByDate(date, fields) {
+  var row = { date: date };
+  if (fields) {
+    if (typeof fields.morning_anchor === 'string') row.morning_anchor = fields.morning_anchor;
+    if (typeof fields.evening_anchor === 'string') row.evening_anchor = fields.evening_anchor;
+  }
+  var r = await gw.send({
+    table: TABLE,
+    params: 'select=' + SELECT,
+    method: 'POST',
+    prefer: 'return=representation',
+    body: row
+  });
+  if (!r.ok) {
+    throw new Error('新建失败（网关返回 ' + r.status + '）：' + String(gw.reasonFrom(r.text)).slice(0, 200));
+  }
+  var rows;
+  try {
+    rows = JSON.parse(r.text);
+  } catch (e) {
+    rows = [];
+  }
+  return Array.isArray(rows) && rows.length ? rows[0] : row;
+}
+
+/**
  * 改某一天（Day 22，契约第 5 条 PATCH）。
  * 只改传进来的那几个字段，没传的字段不动——这是 PATCH 和「整条覆盖」的区别。
  * 返回改完之后的那一行；网关没改到任何一行就返回 null，让接口层报 404。
@@ -152,6 +183,7 @@ module.exports = {
   list: list,
   findByDate: findByDate,
   existsByDate: existsByDate,
+  insertByDate: insertByDate,
   updateByDate: updateByDate,
   deleteByDate: deleteByDate
 };

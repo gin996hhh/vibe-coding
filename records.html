@@ -138,6 +138,18 @@
             </div>
             <p class="muted" id="filterInfo" style="margin-top:0"></p>
 
+            <div class="newday" id="newDayBox">
+              <div class="newday-row">
+                <input id="ndDate" class="f-input newday-date" type="date" aria-label="哪一天">
+                <input id="ndMorning" class="f-input newday-text" type="text" maxlength="500"
+                       placeholder="早锚点（可不填）" aria-label="早锚点">
+                <input id="ndEvening" class="f-input newday-text" type="text" maxlength="500"
+                       placeholder="晚锚点（可不填）" aria-label="晚锚点">
+                <button id="ndBtn" class="f-btn newday-btn" type="button">新建这一天的计划</button>
+              </div>
+              <p class="muted newday-note" id="ndNote" hidden></p>
+            </div>
+
             <div class="reclist" id="dayList"></div>
           </div>
         </div>
@@ -212,6 +224,64 @@
           if (j && j.ok === true) return j.data;
           throw new Error((j && j.error && j.error.message) || '接口返回异常');
         });
+    }
+
+    /* ---------- 建一天（Day 24，POST /api/plan-days） ----------
+       新用户的第一步：任何一天都能先立个计划行，不用先去别处造数据。
+       成功后把新的一天塞进本地列表重画；已存在（409）也如实说。 */
+    function createDay(date, morning, evening) {
+      var body = { date: date };
+      if (morning) body.morning_anchor = morning;
+      if (evening) body.evening_anchor = evening;
+      return fetch(API_BASE + '/api/plan-days', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.ok === true) return j.data;
+          throw new Error((j && j.error && j.error.message) || '接口返回异常');
+        });
+    }
+
+    function bindNewDay() {
+      var box = document.getElementById('newDayBox');
+      if (!box) return;
+      var dIn = document.getElementById('ndDate');
+      var mIn = document.getElementById('ndMorning');
+      var eIn = document.getElementById('ndEvening');
+      var btn = document.getElementById('ndBtn');
+      var note = document.getElementById('ndNote');
+      // 默认填今天，省一次手输
+      var now = new Date();
+      dIn.value = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
+
+      btn.addEventListener('click', function () {
+        var date = dIn.value;
+        note.hidden = true;
+        if (!date) {
+          note.textContent = '先选哪一天，再新建。';
+          note.hidden = false;
+          return;
+        }
+        btn.disabled = true;
+        createDay(date, mIn.value.trim(), eIn.value.trim())
+          .then(function () {
+            note.textContent = '建好了：' + date + '。列表里已经有了，接着勾锚点或写复盘。';
+            note.hidden = false;
+            mIn.value = '';
+            eIn.value = '';
+            return loadCloud();
+          })
+          .catch(function (e) {
+            note.textContent = '没建成：' + humanError(e, '网络不通，稍后再试一次');
+            note.hidden = false;
+          })
+          .then(function () { btn.disabled = false; });
+      });
     }
 
     /* ---------- 三类错误怎么说人话（Day 23） ----------
@@ -836,6 +906,7 @@
       finishDiag();
     } else {
       renderState('loading');
+      bindNewDay();
       // 先拉云端，拉完再渲染；接口慢或挂了也不会卡住页面（loadCloud 自己兜底）
       Promise.all([loadCloud(), loadHealth()]).then(function () { setTimeout(render, 450); });
     }

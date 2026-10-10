@@ -93,10 +93,12 @@ POST /api/checkins
 - `INVALID_RANGE`：三项里有不在 1 到 5 的
 - `DATE_MISSING`：date 没给
 - `FIELD_MISSING`：sleep / energy / mood 少给了某一项（Day 18 实测补记）
-- `PLAN_DAY_NOT_FOUND`：这一天在 plan_days 里没有记录（checkins.date 外键指向 plan_days.date，没排计划的那天打不了卡；Day 18 实测发现后补记）
+- `PLAN_DAY_NOT_FOUND`：Day 18 起用，Day 24 起不再抛出（Day 24 实测新用户没有任何一天能打卡，核心流程第一步就断）。改为：写体检时如果这天没有计划行，服务端自动补建一条空计划行（锚点为空、完成状态 false），体检正常写入。空计划行的含义是「这天真实存在过，但没写锚点」，想补锚点用 PATCH 或页面上的新建入口
 
 
 ## 4. 写入今天的计划（早晚两条锚点）
+
+状态：已实现（Day 24 补齐，2026-10-10 本机验证通过）
 
 POST /api/plan-days
 
@@ -113,7 +115,10 @@ POST /api/plan-days
 ```
 
 失败：
-- `DATE_MISSING`
+- `DATE_MISSING`：没带 date 或格式不是 YYYY-MM-DD
+- `INVALID_FIELD`：body 里出现了 date 和两个锚点之外的字段，或锚点不是文字
+- `ANCHOR_TOO_LONG`：锚点超过 500 字
+- `DAY_EXISTS`（HTTP 409）：这天已经有计划了。重复新建不报 500，明确告诉调用方「要改内容用 PATCH」
 
 
 ## 5. 更新某天的完成状态或复盘

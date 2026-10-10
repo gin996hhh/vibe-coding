@@ -75,7 +75,7 @@ function fail(res, status, code, message) {
 function send(res, code, body) {
   // CORS 的允许来源由网关层统一配（单一白名单域名）。代码层再设一层会拼成
   // "https://xxx,*" 畸形值被浏览器拦掉（Day 20 踩过），这里只保留方法和头。
-  res.setHeader('Access-Control-Allow-Methods', 'GET,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.statusCode = code;
@@ -168,7 +168,7 @@ function pickPatchResult(row) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Methods', 'GET,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.statusCode = 204;
     res.end();
@@ -227,6 +227,75 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  /* ---------- POST /api/plan-days（契约第 4 条，Day 24 补实现） ---------- */
+  if (req.method === 'POST') {
+    if (!gw.hasToken()) {
+      fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
+      return;
+    }
+    var nBody;
+    try {
+      nBody = await readBody(req);
+    } catch (e) {
+      fail(res, 400, 'BODY_NOT_JSON', e.message);
+      return;
+    }
+    nBody = nBody || {};
+
+    var nDate = nBody.date;
+    if (!nDate || !DATE_RE.test(String(nDate))) {
+      fail(res, 400, 'DATE_MISSING',
+        '新建计划要指定日期：body 里带 "date":"YYYY-MM-DD"，你给的是「' + (nDate || '') + '」');
+      return;
+    }
+    for (var nk in nBody) {
+      if (nk !== 'date' && nk !== 'morning_anchor' && nk !== 'evening_anchor') {
+        fail(res, 400, 'INVALID_FIELD',
+          '新建计划只认 date、morning_anchor（早锚点）、evening_anchor（晚锚点）三项，多了「' + nk + '」');
+        return;
+      }
+    }
+    for (var ak of ['morning_anchor', 'evening_anchor']) {
+      if (nBody[ak] !== undefined && typeof nBody[ak] !== 'string') {
+        fail(res, 400, 'INVALID_FIELD', ak + ' 要是一段文字，你给的是「' + nBody[ak] + '」');
+        return;
+      }
+      if (typeof nBody[ak] === 'string' && nBody[ak].length > 500) {
+        fail(res, 400, 'ANCHOR_TOO_LONG', ak + ' 最多 500 个字，你写了 ' + nBody[ak].length + ' 个');
+        return;
+      }
+    }
+
+    try {
+      var created;
+      try {
+        created = await planDaysRepo.insertByDate(String(nDate), nBody);
+      } catch (e) {
+        // 唯一键冲突 = 这天已经有计划了，跟前端说明白，不算服务端故障
+        if (/conflict|duplicate|23505|409/i.test(e.message)) {
+          fail(res, 409, 'DAY_EXISTS', String(nDate) + ' 这天已经有计划了，要改内容用 PATCH，别重复新建。');
+          return;
+        }
+        throw e;
+      }
+      send(res, 201, {
+        ok: true,
+        data: {
+          date: toDate(created.date),
+          morning_anchor: created.morning_anchor,
+          morning_done: created.morning_done,
+          evening_anchor: created.evening_anchor,
+          evening_done: created.evening_done,
+          review: created.review
+        }
+      });
+    } catch (e) {
+      console.error('[plan-days] 新建失败：', e && e.message ? e.message : String(e));
+      fail(res, 500, 'PLAN_DAYS_CREATE_FAILED', '新建这一天的计划失败，原因已记在云函数日志里。');
+    }
+    return;
+  }
+
   /* ---------- DELETE /api/plan-days?date=YYYY-MM-DD ---------- */
   if (req.method === 'DELETE') {
     var du = new URL(req.url, 'http://localhost');
@@ -259,7 +328,7 @@ const server = http.createServer(async (req, res) => {
 
   // 只接受 GET、PATCH 和 DELETE，别的明确挡掉，别让它悄悄走成功分支
   if (req.method !== 'GET') {
-    fail(res, 405, 'METHOD_NOT_ALLOWED', '这个接口只接受 GET、PATCH 和 DELETE，你发的是 ' + req.method);
+    fail(res, 405, 'METHOD_NOT_ALLOWED', '这个接口只接受 GET、POST、PATCH 和 DELETE，你发的是 ' + req.method);
     return;
   }
 

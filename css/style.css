@@ -619,6 +619,17 @@ code {
 }
 .rec-del:hover { color: var(--danger); border-color: var(--danger); }
 
+/* ---------- 新建一天的计划（Day 24） ----------
+   核心流程的第一步：没有计划行的天什么都记不了。样式全取 :root 变量。 */
+.newday { margin: 10px 0 16px; padding: 12px; background: var(--card-hi); border: 1px solid var(--line); border-radius: 12px; }
+.newday-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.newday-date { max-width: 160px; }
+.newday-text { flex: 1 1 180px; min-width: 150px; }
+.newday-btn { min-height: 40px; background: var(--sky-deep); color: var(--ink); border: none; }
+.newday-btn:hover:not(:disabled) { background: var(--sky-hi); }
+.newday-btn:disabled { opacity: 0.6; cursor: wait; }
+.newday-note { margin: 8px 0 0; font-size: 13px; }
+
 /* ---------- 改和删（Day 22） ----------
    云端数据才能改：早/晚完成状态点一下就写库，复盘是输入框加保存，
    删体检只删当天的打卡。色值全取 :root，不写死。 */
