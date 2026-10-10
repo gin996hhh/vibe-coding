@@ -75,19 +75,155 @@ function fail(res, status, code, message) {
 function send(res, code, body) {
   // CORS 的允许来源由网关层统一配（单一白名单域名）。代码层再设一层会拼成
   // "https://xxx,*" 畸形值被浏览器拦掉（Day 20 踩过），这里只保留方法和头。
-  res.setHeader('Access-Control-Allow-Methods', 'GET,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.statusCode = code;
   res.end(JSON.stringify(body));
 }
 
+/** 读请求体。不是合法 JSON 时抛错，由调用方转成 BODY_NOT_JSON */
+function readBody(req) {
+  return new Promise(function (resolve, reject) {
+    var chunks = [];
+    req.on('data', function (c) { chunks.push(c); });
+    req.on('end', function () {
+      var raw = Buffer.concat(chunks).toString('utf8');
+      if (!raw) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch (e) {
+        reject(new Error('请求体不是合法 JSON，请带 Content-Type: application/json 发送'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+/* ---------- PATCH 能改哪些字段（契约第 5 条） ---------- */
+
+var PATCH_FIELDS = ['morning_done', 'evening_done', 'review'];
+var REVIEW_MAX = 2000;
+
+/**
+ * 校验 PATCH 的字段。
+ * 这里是业务规矩，不是数据库的规矩，所以放在入口层。
+ * 返回 { patch } 或 { code, message }。
+ */
+function validatePatch(body) {
+  var keys = Object.keys(body || {});
+  var patch = {};
+
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var v = body[k];
+
+    if (PATCH_FIELDS.indexOf(k) === -1) {
+      return {
+        code: 'INVALID_FIELD',
+        message: '这一项不能改：' + k + '。改一天只能改 morning_done（早锚点完成）、evening_done（晚锚点完成）、review（复盘）这三项'
+      };
+    }
+    if (k === 'review') {
+      if (v !== null && typeof v !== 'string') {
+        return { code: 'INVALID_FIELD', message: 'review（复盘）要是一段文字，想清空就传 null' };
+      }
+      if (typeof v === 'string' && v.length > REVIEW_MAX) {
+        return {
+          code: 'REVIEW_TOO_LONG',
+          message: 'review（复盘）最多 ' + REVIEW_MAX + ' 个字，你写了 ' + v.length + ' 个'
+        };
+      }
+      patch.review = v;
+      continue;
+    }
+    // morning_done / evening_done 只收 true 和 false，没有"没填"这个中间状态
+    if (typeof v !== 'boolean') {
+      return {
+        code: 'INVALID_FIELD',
+        message: k + ' 只能是 true 或 false，你给的是「' + v + '」'
+      };
+    }
+    patch[k] = v;
+  }
+
+  if (!Object.keys(patch).length) {
+    return {
+      code: 'NO_FIELDS_TO_UPDATE',
+      message: '没说要改什么。至少给 morning_done、evening_done、review 其中的一项'
+    };
+  }
+  return { patch: patch };
+}
+
+/** 只保留响应要用的四个字段，避免把整行原样吐出去 */
+function pickPatchResult(row) {
+  return {
+    date: toDate(row.date),
+    morning_done: row.morning_done,
+    evening_done: row.evening_done,
+    review: row.review
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Methods', 'GET,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.statusCode = 204;
     res.end();
+    return;
+  }
+
+  /* ---------- PATCH /api/plan-days?date=YYYY-MM-DD（契约第 5 条） ---------- */
+  if (req.method === 'PATCH') {
+    var pu = new URL(req.url, 'http://localhost');
+    var pDate = pu.searchParams.get('date');
+    var pm = pu.pathname.replace(/\/+$/, '').match(/\/api\/plan-days\/(\d{4}-\d{2}-\d{2})$/);
+    if (pm) pDate = pm[1];
+
+    if (!pDate || !DATE_RE.test(pDate)) {
+      fail(res, 400, 'INVALID_DATE',
+        '修改要指定日期：?date=YYYY-MM-DD 或路径 /api/plan-days/YYYY-MM-DD，你给的是「' + (pDate || '') + '」');
+      return;
+    }
+    if (!gw.hasToken()) {
+      fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
+      return;
+    }
+
+    var pBody;
+    try {
+      pBody = await readBody(req);
+    } catch (e) {
+      fail(res, 400, 'BODY_NOT_JSON', e.message);
+      return;
+    }
+
+    var pv = validatePatch(pBody || {});
+    if (pv.code) {
+      fail(res, 400, pv.code, pv.message);
+      return;
+    }
+
+    try {
+      // 先确认这天有没有计划。没有就是契约里写的 DATE_NOT_FOUND，
+      // 不能让网关抛一句英文出来
+      var before = await planDaysRepo.findByDate(pDate);
+      if (!before) {
+        fail(res, 404, 'DATE_NOT_FOUND', pDate + ' 这天还没有计划，先写计划再改（plan_days 表里没有这一天）。');
+        return;
+      }
+      var updated = await planDaysRepo.updateByDate(pDate, pv.patch);
+      if (!updated) {
+        fail(res, 404, 'DATE_NOT_FOUND', pDate + ' 这天在 plan_days 表里不存在，没什么可改的。');
+        return;
+      }
+      send(res, 200, { ok: true, data: pickPatchResult(updated) });
+    } catch (e) {
+      console.error('[plan-days] 更新失败：', e && e.message ? e.message : String(e));
+      fail(res, 500, 'PLAN_DAYS_UPDATE_FAILED', '更新这一天的记录失败，原因已记在云函数日志里。');
+    }
     return;
   }
 
@@ -121,9 +257,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 只接受 GET 和 DELETE，别的明确挡掉，别让它悄悄走成功分支
+  // 只接受 GET、PATCH 和 DELETE，别的明确挡掉，别让它悄悄走成功分支
   if (req.method !== 'GET') {
-    fail(res, 405, 'METHOD_NOT_ALLOWED', '这个接口只接受 GET 和 DELETE，你发的是 ' + req.method);
+    fail(res, 405, 'METHOD_NOT_ALLOWED', '这个接口只接受 GET、PATCH 和 DELETE，你发的是 ' + req.method);
     return;
   }
 

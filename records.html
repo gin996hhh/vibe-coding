@@ -198,6 +198,30 @@
       };
     }
 
+    /* ---------- 改一条（Day 22，PATCH /api/plan-days） ----------
+       只把要改的字段传过去，没传的字段服务端不动，这就是 PATCH。
+       成功后返回 data，失败把中文原因抛出去给调用方显示。 */
+    function patchDay(date, body) {
+      return fetch(API_BASE + '/api/plan-days?date=' + encodeURIComponent(date), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.ok === true) return j.data;
+          throw new Error((j && j.error && j.error.message) || '接口返回异常');
+        });
+    }
+
+    /** 改完/删完直接改本地这一条再重画，省一次重新拉列表 */
+    function findCloud(date) {
+      for (var i = 0; i < cloudRecords.length; i++) {
+        if (cloudRecords[i].date === date) return cloudRecords[i];
+      }
+      return null;
+    }
+
     function loadCloud() {
       var off = null;
       try { off = new URLSearchParams(location.search).get('api'); } catch (e) {}
@@ -393,6 +417,97 @@
         if (d.review.stuck_text) rs.push('卡在：' + d.review.stuck_text);
         if (d.review.hard_start_text) rs.push('硬启动：' + d.review.hard_start_text);
         if (rs.length) box.appendChild(el('div', 'rec-line', rs.join('　·　')));
+
+        /* 改和删只在云端模式给（本地那套走回收站，另有还原入口）。
+           删除一律先问一句「确认吗」，不可逆的操作不给一键直删。 */
+        if (cloudRecords) {
+          var ops = el('div', 'rec-ops');
+
+          // 早晚锚点的完成状态：点一下就改，改完立刻写进库
+          d.anchors.forEach(function (a) {
+            var field = a.tag === '早' ? 'morning_done' : 'evening_done';
+            var tbtn = el('button', 'rec-op' + (a.done ? ' on' : ''),
+              a.tag + '锚点 ' + (a.done ? '已完成' : '未完成'));
+            tbtn.addEventListener('click', function () {
+              var btn = this;
+              var next = !a.done;
+              var body = {};
+              body[field] = next;
+              btn.disabled = true;
+              patchDay(d.date, body)
+                .then(function () {
+                  var rec = findCloud(d.date);
+                  if (rec) rec[field] = next;
+                  render();
+                })
+                .catch(function (e) {
+                  window.alert('改失败：' + (e && e.message ? e.message : e));
+                  btn.disabled = false;
+                });
+            });
+            ops.appendChild(tbtn);
+          });
+
+          // 复盘：输入框里的东西点保存才写库，不自动保存
+          var rv = el('textarea', 'rec-review-input');
+          rv.rows = 2;
+          rv.placeholder = '这天的一句话复盘（写完点保存）';
+          rv.value = (d.review && d.review.method_text) || '';
+
+          var saveBtn = el('button', 'rec-op', '保存复盘');
+          saveBtn.addEventListener('click', function () {
+            var btn = this;
+            var text = rv.value || '';
+            btn.disabled = true;
+            patchDay(d.date, { review: text || null })
+              .then(function () {
+                var rec = findCloud(d.date);
+                if (rec) rec.method_text = text;
+                render();
+              })
+              .catch(function (e) {
+                window.alert('保存失败：' + (e && e.message ? e.message : e));
+                btn.disabled = false;
+              });
+          });
+
+          // 只删体检：那天的计划和锚点留着
+          if (d.checkin) {
+            var dck = el('button', 'rec-op danger', '删体检');
+            dck.addEventListener('click', function () {
+              if (!window.confirm('把 ' + d.date + ' 这天的体检删掉？\n只删体检，这天的计划和锚点都留着。')) return;
+              var btn = this;
+              btn.disabled = true;
+              btn.textContent = '删除中…';
+              fetch(API_BASE + '/api/checkins?date=' + encodeURIComponent(d.date), { method: 'DELETE' })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                  if (j && j.ok === true) {
+                    var rec = findCloud(d.date);
+                    if (rec) rec.checkin = null;
+                    render();
+                  } else {
+                    window.alert('删除失败：' + (j && j.error && j.error.message ? j.error.message : '接口返回异常'));
+                    btn.disabled = false;
+                    btn.textContent = '删体检';
+                  }
+                })
+                .catch(function (e) {
+                  window.alert('删除失败：网络不通（' + (e && e.message ? e.message : e) + '）');
+                  btn.disabled = false;
+                  btn.textContent = '删体检';
+                });
+            });
+            ops.appendChild(dck);
+          }
+
+          box.appendChild(ops);
+
+          var ops2 = el('div', 'rec-ops');
+          ops2.appendChild(saveBtn);
+          box.appendChild(rv);
+          box.appendChild(ops2);
+        }
 
         // 一项都没做、也没复盘：如实说，不美化
         if (!d.anchors.length && !d.checkin && !rs.length) {

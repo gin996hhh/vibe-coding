@@ -65,6 +65,19 @@ async function update(date, row) {
   return rows && rows.length ? rows[0] : row;
 }
 
+/**
+ * 删某一天的体检（Day 22）。
+ * 只删 checkins 这一行，plan_days 那天的计划留着——跟「删整天」是两回事：
+ * 删整天会把计划一起带走，这里只当天的打卡作废，计划行还在。
+ * 返回 false 表示这天本来就没有体检，让接口层报 404。
+ */
+async function deleteByDate(date) {
+  var exists = await findByDate(date);
+  if (!exists) return false;
+  await gw.deleteRows({ table: TABLE, params: 'date=eq.' + encodeURIComponent(date) });
+  return true;
+}
+
 function parse(text) {
   try {
     var rows = JSON.parse(text);
@@ -94,5 +107,6 @@ module.exports = {
   findByDate: findByDate,
   listAll: listAll,
   insert: insert,
-  update: update
+  update: update,
+  deleteByDate: deleteByDate
 };

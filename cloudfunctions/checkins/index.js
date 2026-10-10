@@ -72,7 +72,7 @@ function validate(body) {
 function cors(res) {
   // CORS 的允许来源由网关层统一配（单一白名单域名）。代码层再设一层会拼成
   // "https://xxx,*" 畸形值被浏览器拦掉（Day 20 踩过），这里只保留方法和头。
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
@@ -113,10 +113,43 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 只接受 POST，别的明确挡掉（GET 打开会直接告诉你该怎么用）
+  /* ---------- DELETE /api/checkins?date=YYYY-MM-DD（Day 22） ----------
+   * 只删这一天的体检，那天的计划行留着。想连计划一起删要用
+   * DELETE /api/plan-days，那个是删整天。
+   */
+  if (req.method === 'DELETE') {
+    var du = new URL(req.url, 'http://localhost');
+    var dDate = du.searchParams.get('date');
+    var dm = du.pathname.replace(/\/+$/, '').match(/\/api\/checkins\/(\d{4}-\d{2}-\d{2})$/);
+    if (dm) dDate = dm[1];
+
+    if (!dDate || !DATE_RE.test(dDate)) {
+      fail(res, 400, 'INVALID_DATE',
+        '删除体检要指定日期：?date=YYYY-MM-DD 或路径 /api/checkins/YYYY-MM-DD，你给的是「' + (dDate || '') + '」');
+      return;
+    }
+    if (!gw.hasToken()) {
+      fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
+      return;
+    }
+    try {
+      var removed = await checkinsRepo.deleteByDate(dDate);
+      if (!removed) {
+        fail(res, 404, 'CHECKIN_NOT_FOUND', dDate + ' 这天没有体检记录，没什么可删的。');
+        return;
+      }
+      send(res, 200, { ok: true, data: { date: dDate, deleted: true } });
+    } catch (e) {
+      console.error('[checkins] 删除失败：', e && e.message ? e.message : String(e));
+      fail(res, 500, 'CHECKINS_DELETE_FAILED', '删除体检记录失败，原因已记在云函数日志里。');
+    }
+    return;
+  }
+
+  // 到这一步只剩 POST，别的明确挡掉（GET 打开会直接告诉你该怎么用）
   if (req.method !== 'POST') {
     fail(res, 405, 'METHOD_NOT_ALLOWED',
-      '这个接口只接受 POST。写数据请用 POST，例如：curl -X POST 本地址 -H "Content-Type: application/json" -d "{\\"date\\":\\"2026-10-03\\",\\"sleep\\":4,\\"energy\\":3,\\"mood\\":4}"');
+      '这个接口只接受 POST 和 DELETE。写数据请用 POST，例如：curl -X POST 本地址 -H "Content-Type: application/json" -d "{\\"date\\":\\"2026-10-03\\",\\"sleep\\":4,\\"energy\\":3,\\"mood\\":4}"');
     return;
   }
 

@@ -118,6 +118,8 @@ POST /api/plan-days
 
 ## 5. 更新某天的完成状态或复盘
 
+状态：已实现（Day 22，2026-10-10 部署并验证通过）
+
 PATCH /api/plan-days/:date
 
 路径参数：date，形如 2026-10-02
@@ -134,6 +136,17 @@ PATCH /api/plan-days/:date
 
 失败：
 - `DATE_NOT_FOUND`：这天还没有计划，先走第 4 个接口
+- `INVALID_DATE`：date 不是 YYYY-MM-DD，或者干脆没给
+- `INVALID_FIELD`：想改的字段不在 morning_done / evening_done / review 这三项里；
+  morning_done 和 evening_done 只收 true 和 false
+- `REVIEW_TOO_LONG`：复盘超过 2000 字
+- `NO_FIELDS_TO_UPDATE`：三个字段一个都没给
+- `BODY_NOT_JSON`：请求体不是合法 JSON
+
+补充（Day 22 实测补记）：
+- 只改传进来的字段，没传的字段原样保留，这是 PATCH 和「整条覆盖」的区别
+- 日期同样走查询串 `?date=YYYY-MM-DD`（网关没开子路径透传），路径形式也认
+- 前端记录台在每个日期块上给了三个入口：早/晚完成状态点一下就改、复盘输入框加保存、删体检（只删当天的打卡）
 
 
 ## 6. 读取计划列表（支持筛选，记录台用）
@@ -223,6 +236,31 @@ DELETE /api/plan-days?date=2026-10-06
 注：日期走查询串而不是路径形式，原因见 §7 的实测补记（网关没开子路径透传）。这一节是 Day 22 之前就已经上线的实现，补登记是为了让契约跟得上代码；Day 22 加了 PATCH 之后，要按本节同样的格式一并登记进来。
 
 
+## 10. 删除某一天的体检（只删 checkins，计划行留着）
+
+状态：已实现（Day 22，2026-10-10 部署并验证通过）
+
+DELETE /api/checkins?date=2026-10-10
+
+查询参数：date（必填，要删体检的那一天）
+
+说明：和 §9 的区别是删的范围——§9 删的是一整天（计划 + 体检一起没），这一节只删 checkins 里那一行，plan_days 那天的计划和早晚锚点原样留着。先查这天有没有体检，没有就返回中文错误，不静默成功。
+
+响应（成功）：
+```json
+{ "ok": true, "data": { "date": "2026-10-10", "deleted": true } }
+```
+
+失败：
+- `INVALID_DATE`：date 不是 YYYY-MM-DD，或者干脆没给
+- `CHECKIN_NOT_FOUND`：「这天没有体检记录，没什么可删的」
+- `CHECKINS_DELETE_FAILED`：删除没成功，附带原始原因
+
+补充（Day 22 实测补记）：
+- 日期走查询串 `?date=YYYY-MM-DD`，路径形式 `/api/checkins/YYYY-MM-DD` 也认
+- 前端在点「删体检」之前会弹一次确认，写明「只删体检，计划和锚点留着」
+
+
 ## 表结构（Day 16 据此建表，从本契约推导）
 
 goals
@@ -245,3 +283,7 @@ Day 15 只实现第 0 个（/api/health）。
 2026-10-03 补记（不改动上面的原文，只追加事实）：
 第 3 条（POST /api/checkins）和第 6 条（GET /api/plan-days）已实现、已部署到公网、已实测通过，
 在上面两条各自的标题下标注了状态。第 1、2、4、5、7、8 条仍是占位。
+
+2026-10-10 补记（Day 22，同上只追加事实）：
+第 5 条（PATCH /api/plan-days）已实现，另新增第 10 条（DELETE /api/checkins，只删体检）。
+第 1、2、4、7、8 条仍是占位。

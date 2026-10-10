@@ -118,6 +118,31 @@ async function deleteByDate(date) {
   return true;
 }
 
+/**
+ * 改某一天（Day 22，契约第 5 条 PATCH）。
+ * 只改传进来的那几个字段，没传的字段不动——这是 PATCH 和「整条覆盖」的区别。
+ * 返回改完之后的那一行；网关没改到任何一行就返回 null，让接口层报 404。
+ */
+async function updateByDate(date, patch) {
+  var r = await gw.send({
+    table: TABLE,
+    params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date),
+    method: 'PATCH',
+    prefer: 'return=representation',
+    body: patch
+  });
+  if (!r.ok) {
+    throw new Error('更新失败（网关返回 ' + r.status + '）：' + String(gw.reasonFrom(r.text)).slice(0, 200));
+  }
+  var rows;
+  try {
+    rows = JSON.parse(r.text);
+  } catch (e) {
+    rows = [];
+  }
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
 module.exports = {
   TABLE: TABLE,
   SELECT: SELECT,
@@ -127,5 +152,6 @@ module.exports = {
   list: list,
   findByDate: findByDate,
   existsByDate: existsByDate,
+  updateByDate: updateByDate,
   deleteByDate: deleteByDate
 };
