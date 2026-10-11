@@ -601,7 +601,7 @@ def main():
     local_only = "--local" in sys.argv
     print("verify-project · 发布前检查")
     print("项目根：%s" % ROOT)
-    print("范围：%s" % ("仅本地项" if local_only else "全部 12 项"))
+    print("范围：全部 %d 项" % len(CHECKS))
     print("-" * 78)
     for code, name, fn, is_local in CHECKS:
         if local_only and not is_local:
