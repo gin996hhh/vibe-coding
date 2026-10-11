@@ -37,6 +37,20 @@ python .workbuddy/skills/verify-project/verify.py
 
 检查项来自这个项目真实踩过的坑，不是通用模板。在对话里说「运行 verify-project」也能跑。详细说明见 `.workbuddy/skills/verify-project/SKILL.md`。
 
+## push 撞 502 时的备用通道
+
+这台机器到 github.com 的 git 协议经常被代理掐断（`CONNECT tunnel failed, response 502`），但 api.github.com 是通的。`git push` 没辙的时候走接口：
+
+```bash
+export GH_TOKEN=$(printf "protocol=https\nhost=github.com\n\n" \
+    | timeout 30 git credential fill 2>/dev/null | sed -n 's/^password=//p')
+python tools/push-via-api.py
+```
+
+它会把 `origin/main` 之后的本地提交逐个写到远端，跑完把 `origin/main` 指到 HEAD。令牌长度是 0 就重试一次，`git credential fill` 偶尔返回空串。
+
+注意它写出的提交编号跟本地不一样（提交者是接口生成的），tree 完全一致，也就是内容同号、编号不同号。想让编号也对齐，得等网络通的时候 `git fetch && git reset --soft origin/main`。
+
 ## 目录速查
 
 | 目录 | 放什么 |
