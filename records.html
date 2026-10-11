@@ -14,6 +14,17 @@
       if (box) { box.style.display = 'block'; box.textContent = '⚠️ 页面报错：' + window.__err.join(' ｜ '); }
     };
   </script>
+  <script>
+    /* 诊断开关（Day 24 之后 Victor 定的：本地一套带诊断，公网一套干净）
+       公网是给使用者看的，不摆接口地址、健康状态、测试写入这些开发用的东西。
+       以下几种情况才算本地：直接用文件打开、localhost、127.0.0.1；另外地址栏加 ?diag=1 可强制打开。 */
+    window.__DIAG = (function () {
+      if (/[?&]diag=0/.test(location.search)) return false;   // 本地也能关掉，用来看公网那套长什么样
+      if (/[?&]diag=1/.test(location.search)) return true;
+      var h = location.hostname;
+      return !h || h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+    })();
+  </script>
 </head>
 <body>
   <div class="wrap wide">
@@ -37,6 +48,7 @@
         </p>
       </div>
       <div class="head-side">
+        <a href="today.html" class="head-act"><button type="button">去今日</button></a>
         <span class="badge" id="goalBadge" style="display:none"></span>
         <span class="badge" id="demoBadge" style="display:none"></span>
         <span class="badge" id="healthBadge" style="display:none"></span>
@@ -69,7 +81,7 @@
             <p class="muted" id="ratioLine" style="margin-bottom:0"></p>
           </div>
 
-          <div class="card">
+          <div class="card" id="diagCard">
             <h2>这个页面的数据是哪来的</h2>
             <p class="muted" style="margin:0 0 8px">云上的接口现在通不通：<span id="healthLine">检测中…</span></p>
             <p class="muted" style="margin:0 0 8px">数据来源：<span id="srcLine">—</span></p>
@@ -89,36 +101,26 @@
           </div>
 
           <div class="card" id="trashCard">
-            <div class="card-head">
-              <h2>回收站</h2>
+            <button class="fold-head" id="trashToggle" type="button" aria-expanded="false" aria-controls="trashBody">
+              <span class="fold-arrow" aria-hidden="true">›</span>
+              回收站
               <span class="count-chip" id="trashChip"></span>
+            </button>
+            <div id="trashBody" hidden>
+              <p class="muted" style="margin:8px 0">
+                删掉的东西先放这儿，不是消失了。想要还能原样拿回来。
+              </p>
+              <div id="trashList"></div>
+              <p style="margin:12px 0 0">
+                <button id="trashAllBtn" type="button">把全部记录移入回收站</button>
+                <button id="trashClearBtn" class="ghost" type="button" disabled>彻底清空回收站</button>
+              </p>
             </div>
-            <p class="muted" style="margin-top:0">
-              删掉的东西先放这儿，不是消失了。想要还能原样拿回来。
-            </p>
-            <div id="trashList"></div>
-            <p style="margin:12px 0 0">
-              <button id="trashAllBtn" type="button">把全部记录移入回收站</button>
-              <button id="trashClearBtn" class="ghost" type="button" disabled>彻底清空回收站</button>
-            </p>
-          </div>
-
-          <div class="card">
-            <p class="muted" style="margin-top:0">接着做今天的那一项。</p>
-            <a href="today.html"><button>去今日</button></a>
           </div>
         </aside>
 
         <div class="col">
-          <div class="card">
-            <div class="card-head">
-              <h2>每天</h2>
-              <span class="count-chip" id="dayChip"></span>
-            </div>
-            <p class="muted" style="margin-top:0">
-              最近的在最上面。勾没勾、复盘写了没，都摆在明面上。
-            </p>
-
+          <div class="card" id="toolsCard">
             <div class="filterbar">
               <label class="f-field">
                 <span class="f-label">关键词</span>
@@ -149,6 +151,16 @@
               </div>
               <p class="muted newday-note" id="ndNote" hidden></p>
             </div>
+          </div>
+
+          <div class="card" id="daysCard">
+            <div class="card-head">
+              <h2>每天</h2>
+              <span class="count-chip" id="dayChip"></span>
+            </div>
+            <p class="muted" style="margin-top:0">
+              最近的在最上面。勾没勾、复盘写了没，都摆在明面上。
+            </p>
 
             <div class="reclist" id="dayList"></div>
           </div>
@@ -435,19 +447,17 @@
         }
         head.appendChild(dots);
 
-        // 删除：云上数据调接口真删（找不回来）；本机数据进回收站（能还原）
+        // 删除：云上和本机都进回收站，都还能拿回来
         var delBtn = el('button', 'rec-del', '删除');
-        delBtn.title = cloudRecords
-          ? '删掉云上这一天，删了就找不回来'
-          : '这一天进回收站，想拿回来还能拿回来';
+        delBtn.title = '这一天进回收站，想拿回来还能拿回来';
         delBtn.setAttribute('data-date', d.date);
         delBtn.addEventListener('click', function () {
           var dt = this.getAttribute('data-date');
           var btn = this;
 
-          /* 云上数据：走 DELETE /api/plan-days，是硬删除 */
+          /* 云上数据：DELETE 默认是软删，打标记放进回收站 */
           if (cloudRecords) {
-            if (!window.confirm('把云上 ' + dt + ' 这一天彻底删掉？\n删了就找不回来了。')) return;
+            if (!window.confirm('把 ' + dt + ' 这一天放进回收站？\n回收站里还能原样拿回来。')) return;
             btn.disabled = true;
             btn.textContent = '删除中…';
             fetch(API_BASE + '/api/plan-days?date=' + encodeURIComponent(dt), { method: 'DELETE' })
@@ -613,6 +623,7 @@
       var clearBtn = document.getElementById('trashClearBtn');
 
       card.style.display = '';
+      document.getElementById('trashAllBtn').style.display = '';
 
       var list = Store.getTrash() || [];
       chip.textContent = list.length ? list.length + ' 项' : '空';
@@ -658,7 +669,113 @@
       });
     }
 
+    /* 云端回收站：从接口读被软删的那几天，能还原、也能彻底删 */
+    function renderTrashCloud() {
+      var card = document.getElementById('trashCard');
+      var listEl = document.getElementById('trashList');
+      var chip = document.getElementById('trashChip');
+      var clearBtn = document.getElementById('trashClearBtn');
+      var allBtn = document.getElementById('trashAllBtn');
+
+      card.style.display = '';
+      allBtn.style.display = 'none';   // 云上没有"把全部记录移入回收站"这个动作
+      chip.textContent = '读取中…';
+      clearBtn.disabled = true;
+      listEl.innerHTML = '';
+      listEl.appendChild(el('p', 'muted', '正在读回收站…'));
+
+      fetch(API_BASE + '/api/plan-days?deleted=1', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var rows = (j && j.data) || [];
+          chip.textContent = rows.length ? rows.length + ' 项' : '空';
+          clearBtn.disabled = !rows.length;
+          listEl.innerHTML = '';
+
+          if (!rows.length) {
+            listEl.appendChild(el('p', 'muted', '还没有删掉任何东西。'));
+            return;
+          }
+
+          rows.forEach(function (r) {
+            var row = el('div', 'trash-item');
+
+            var label = r.date + (r.morning_anchor || r.evening_anchor
+              ? ' · ' + [r.morning_anchor, r.evening_anchor].filter(Boolean).join(' / ')
+              : '');
+            row.appendChild(el('span', 't-label', label));
+            row.appendChild(el('span', 't-when',
+              r.deleted_at ? '删于 ' + String(r.deleted_at).slice(0, 10) : ''));
+
+            var acts = el('div', 't-acts');
+
+            var back = el('button', null, '还原');
+            back.addEventListener('click', function () {
+              back.disabled = true;
+              back.textContent = '还原中…';
+              fetch(API_BASE + '/api/plan-days?date=' + encodeURIComponent(r.date), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_deleted: false })
+              })
+                .then(function (rr) { return rr.json(); })
+                .then(function (jj) {
+                  // 重新拉一次云端，还原的那天要回到列表里
+                  if (jj && jj.ok) { loadCloud().then(render); }
+                  else {
+                    window.alert('还原失败：' + (jj && jj.error && jj.error.message ? jj.error.message : '接口返回异常'));
+                    renderTrashCloud();
+                  }
+                })
+                .catch(function (e) {
+                  window.alert('还原失败：' + humanError(e, '网络不通，稍后再试一次'));
+                  renderTrashCloud();
+                });
+            });
+
+            var gone = el('button', 'del', '彻底删除');
+            gone.addEventListener('click', function () {
+              if (!window.confirm('彻底删掉 ' + r.date + '？这一步之后就找不回来了。')) return;
+              gone.disabled = true;
+              fetch(API_BASE + '/api/plan-days?date=' + encodeURIComponent(r.date) + '&hard=1',
+                { method: 'DELETE' })
+                .then(function (rr) { return rr.json(); })
+                .then(function (jj) {
+                  if (jj && jj.ok) { renderTrashCloud(); }
+                  else {
+                    window.alert('删除失败：' + (jj && jj.error && jj.error.message ? jj.error.message : '接口返回异常'));
+                    renderTrashCloud();
+                  }
+                })
+                .catch(function (e) {
+                  window.alert('删除失败：' + humanError(e, '网络不通，稍后再试一次'));
+                  renderTrashCloud();
+                });
+            });
+
+            acts.appendChild(back);
+            acts.appendChild(gone);
+            row.appendChild(acts);
+            listEl.appendChild(row);
+          });
+        })
+        .catch(function (e) {
+          chip.textContent = '读不到';
+          listEl.innerHTML = '';
+          listEl.appendChild(el('p', 'muted',
+            '回收站没读出来：' + humanError(e, '网络不通，稍后再试一次')));
+        });
+    }
+
     function bindTrash() {
+      var tgEl = document.getElementById('trashToggle');
+      var bodyEl = document.getElementById('trashBody');
+      tgEl.addEventListener('click', function () {
+        var willOpen = bodyEl.hidden;
+        bodyEl.hidden = !willOpen;
+        tgEl.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      });
+
       document.getElementById('trashAllBtn').addEventListener('click', function () {
         var n = (Store.getRecords() || []).length;
         if (!n) { window.alert('现在没有可以清的记录。'); return; }
@@ -668,6 +785,26 @@
       });
       document.getElementById('trashClearBtn').addEventListener('click', function () {
         if (!window.confirm('把回收站里的东西全部彻底删掉？\n这一步之后就找不回来了。')) return;
+
+        /* 云端：把回收站里每一项都真删掉 */
+        if (cloudRecords) {
+          fetch(API_BASE + '/api/plan-days?deleted=1', { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              var rows = (j && j.data) || [];
+              return Promise.all(rows.map(function (r) {
+                return fetch(API_BASE + '/api/plan-days?date=' + encodeURIComponent(r.date) + '&hard=1',
+                  { method: 'DELETE' });
+              }));
+            })
+            .then(function () { renderTrashCloud(); })
+            .catch(function (e) {
+              window.alert('清空失败：' + humanError(e, '网络不通，稍后再试一次'));
+              renderTrashCloud();
+            });
+          return;
+        }
+
         Store.clearTrash();
         renderTrash();
       });
@@ -728,6 +865,11 @@
       var goal = Store.getGoal();
       hasGoal = !!(goal && goal.content);
 
+      /* 公网干净：这一整张卡是开发用的（接口地址、通不通、测试写入），
+         本地打开或地址栏带 ?diag=1 才出现，使用者看不到。 */
+      var diagCardEl = document.getElementById('diagCard');
+      if (diagCardEl) diagCardEl.style.display = window.__DIAG ? '' : 'none';
+
       if (forced === 'error' || !storageOK) {
         renderState('error');
         document.getElementById('content').style.display = 'none';
@@ -754,14 +896,14 @@
 
       if (!filterBound) { bindFilter(); filterBound = true; }
 
-      /* 回收站只管本机数据：云上数据时是硬删除，不进回收站，
-         所以云端模式下整张卡藏起来，免得让人以为能还原。 */
+      /* 回收站两边都有：云上删的走接口软删，本机删的进 localStorage，
+         两边都能看见、都能原样拿回来。 */
       var trashCardEl = document.getElementById('trashCard');
+      trashCardEl.style.display = '';
+      if (!trashBound) bindTrash();
       if (cloudRecords) {
-        trashCardEl.style.display = 'none';
+        renderTrashCloud();
       } else {
-        trashCardEl.style.display = '';
-        if (!trashBound) bindTrash();
         renderTrash();
       }
 
@@ -769,9 +911,9 @@
       var srcEl = document.getElementById('srcLine');
       if (srcEl) srcEl.textContent = cloudRecords ? API_BASE + '/api/plan-days' : '接口没取到，已用本地数据';
 
-      // 健康状态：页头一个徽标，检查台卡片里一行具体返回
+      // 健康状态：页头一个徽标，检查台卡片里一行具体返回。都只在诊断模式下出现。
       var hbEl = document.getElementById('healthBadge');
-      if (hbEl && healthNote) {
+      if (hbEl && healthNote && window.__DIAG) {
         hbEl.textContent = healthOK ? '接口正常' : '接口不可用';
         hbEl.className = 'badge' + (healthOK ? ' on' : '');
         hbEl.style.display = 'inline-block';
@@ -791,7 +933,7 @@
 
       if (!writeBound) { bindWrite(); writeBound = true; }
       var cbEl = document.getElementById('cloudBadge');
-      if (cloudNote) {
+      if (cloudNote && window.__DIAG) {
         cbEl.textContent = cloudRecords ? '数据来自云端接口：' + cloudNote : cloudNote;
         cbEl.className = 'badge' + (cloudRecords ? ' on' : '');
         cbEl.style.display = 'inline-block';
@@ -880,9 +1022,9 @@
       if (forced) d.push('演示状态=' + forced);
       if (window.__err.length) d.push('⚠️ ' + window.__err.join(' ｜ '));
       var diagEl = document.getElementById('diag');
-      /* 诊断条默认不显示（?debug=1 才打开）：调试读数不给用户看 */
-      var showDiag = false;
-      try { showDiag = new URLSearchParams(location.search).get('debug') === '1'; } catch (e) {}
+      /* 诊断条只跟 __DIAG 走（?debug=1 这条老开关保留兼容）：调试读数不给用户看 */
+      var showDiag = !!window.__DIAG;
+      try { showDiag = showDiag || new URLSearchParams(location.search).get('debug') === '1'; } catch (e) {}
       if (showDiag) {
         diagEl.style.display = 'block';
         diagEl.textContent = '诊断 ｜ ' + d.join(' ｜ ');

@@ -132,13 +132,18 @@ const server = http.createServer(async (req, res) => {
       fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
       return;
     }
+    // ?hard=1 才是真删，默认打标记放进回收站，跟着那天的计划一起能还原
+    var hardDel = du.searchParams.get('hard') === '1';
     try {
-      var removed = await checkinsRepo.deleteByDate(dDate);
+      var removed = await checkinsRepo.deleteByDate(dDate, hardDel);
       if (!removed) {
         fail(res, 404, 'CHECKIN_NOT_FOUND', dDate + ' 这天没有体检记录，没什么可删的。');
         return;
       }
-      send(res, 200, { ok: true, data: { date: dDate, deleted: true } });
+      send(res, 200, {
+        ok: true,
+        data: { date: dDate, deleted: true, hard: hardDel, can_restore: !hardDel }
+      });
     } catch (e) {
       console.error('[checkins] 删除失败：', e && e.message ? e.message : String(e));
       fail(res, 500, 'CHECKINS_DELETE_FAILED', '删除体检记录失败，原因已记在云函数日志里。');

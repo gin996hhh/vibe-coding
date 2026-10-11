@@ -19,20 +19,30 @@ var gw = require('./gatewayClient');
 var TABLE = 'checkins';
 
 // 读哪些字段。加字段只改这一行
-var SELECT = 'date,sleep,energy,mood,created_at';
+var SELECT = 'date,sleep,energy,mood,created_at,is_deleted';
 
-/** 查某一天的体检记录，没有就返回 null */
+/** 查某一天的体检记录（只查没删的），没有就返回 null */
 async function findByDate(date) {
   var r;
   try {
     r = await gw.getRows({
       table: TABLE,
-      params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date),
+      params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date) + '&is_deleted=eq.false',
       wantCount: false
     });
   } catch (e) {
     throw new Error('查询当天记录失败（网关返回 ' + e.status + '）');
   }
+  return r.rows && r.rows.length ? r.rows[0] : null;
+}
+
+/** 查某一天（不管删没删）。软删、还原要用 */
+async function findAnyByDate(date) {
+  var r = await gw.getRows({
+    table: TABLE,
+    params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date),
+    wantCount: false
+  });
   return r.rows && r.rows.length ? r.rows[0] : null;
 }
 
@@ -69,12 +79,25 @@ async function update(date, row) {
  * 删某一天的体检（Day 22）。
  * 只删 checkins 这一行，plan_days 那天的计划留着——跟「删整天」是两回事：
  * 删整天会把计划一起带走，这里只当天的打卡作废，计划行还在。
+ * 默认软删除（打标记，能从回收站拿回来）；hard 为 true 才真删。
  * 返回 false 表示这天本来就没有体检，让接口层报 404。
  */
-async function deleteByDate(date) {
-  var exists = await findByDate(date);
+async function deleteByDate(date, hard) {
+  var exists = await findAnyByDate(date);
   if (!exists) return false;
-  await gw.deleteRows({ table: TABLE, params: 'date=eq.' + encodeURIComponent(date) });
+  if (hard) {
+    await gw.deleteRows({ table: TABLE, params: 'date=eq.' + encodeURIComponent(date) });
+    return true;
+  }
+  await update(date, { is_deleted: true });
+  return true;
+}
+
+/** 从回收站拿回来：把体检的删除标记去掉 */
+async function restoreByDate(date) {
+  var any = await findAnyByDate(date);
+  if (!any || !any.is_deleted) return false;
+  await update(date, { is_deleted: false });
   return true;
 }
 
@@ -97,7 +120,10 @@ async function listAll(limit) {
   var n = Number(limit) || 100;
   if (n < 1) n = 1;
   if (n > 500) n = 500;
-  var r = await gw.getRows({ table: TABLE, params: 'select=' + SELECT + '&limit=' + n });
+  var r = await gw.getRows({
+    table: TABLE,
+    params: 'select=' + SELECT + '&is_deleted=eq.false&limit=' + n
+  });
   return r.rows || [];
 }
 
@@ -105,8 +131,10 @@ module.exports = {
   TABLE: TABLE,
   SELECT: SELECT,
   findByDate: findByDate,
+  findAnyByDate: findAnyByDate,
   listAll: listAll,
   insert: insert,
   update: update,
-  deleteByDate: deleteByDate
+  deleteByDate: deleteByDate,
+  restoreByDate: restoreByDate
 };

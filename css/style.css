@@ -607,6 +607,37 @@ code {
 
 /* ---------- 回收站（Day 16 收尾，Victor 要求：删掉不等于消失） ----------
    色值全取 :root，不写死；触控目标按最小 32px 走，窄屏整行换行。 */
+
+/* 折叠头：低频功能默认收起，点一下才展开（Day 24 之后整理信息层级） */
+.fold-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 2px 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.fold-head:hover { color: var(--sky); }
+.fold-arrow {
+  display: inline-block;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-3);
+  transition: transform .16s ease;
+}
+.fold-head[aria-expanded="true"] .fold-arrow { transform: rotate(90deg); }
+
+/* 页头右上角的操作链接 */
+.head-act { text-decoration: none; }
+
 .rec-del {
   margin-left: auto;
   padding: 4px 10px;

@@ -102,7 +102,7 @@ function readBody(req) {
 
 /* ---------- PATCH 能改哪些字段（契约第 5 条） ---------- */
 
-var PATCH_FIELDS = ['morning_done', 'evening_done', 'review'];
+var PATCH_FIELDS = ['morning_done', 'evening_done', 'review', 'is_deleted'];
 var REVIEW_MAX = 2000;
 
 /**
@@ -135,6 +135,17 @@ function validatePatch(body) {
         };
       }
       patch.review = v;
+      continue;
+    }
+    // 从回收站拿回来：只允许传 false，删除必须走 DELETE，不给"偷偷删"的口子
+    if (k === 'is_deleted') {
+      if (v !== false) {
+        return {
+          code: 'INVALID_FIELD',
+          message: 'is_deleted 只能传 false，意思是把这一天从回收站拿回来。要删除请用 DELETE'
+        };
+      }
+      patch.is_deleted = false;
       continue;
     }
     // morning_done / evening_done 只收 true 和 false，没有"没填"这个中间状态
@@ -207,6 +218,34 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
+      /* 还原分支：把这一天从回收站拿回来，连当天的体检一起恢复 */
+      if (Object.prototype.hasOwnProperty.call(pv.patch, 'is_deleted')) {
+        var any = await planDaysRepo.findAnyByDate(pDate);
+        if (!any) {
+          fail(res, 404, 'DATE_NOT_FOUND', pDate + ' 这天在表里没有记录，没什么可还原的。');
+          return;
+        }
+        if (!any.is_deleted) {
+          fail(res, 409, 'NOT_IN_TRASH', pDate + ' 这天本来就在，不在回收站里。');
+          return;
+        }
+        var back = await planDaysRepo.restoreByDate(pDate);
+        await checkinsRepo.restoreByDate(pDate);   // 当天的体检跟着一起回来
+        send(res, 200, {
+          ok: true,
+          data: back ? {
+            date: toDate(back.date),
+            morning_anchor: back.morning_anchor,
+            morning_done: back.morning_done,
+            evening_anchor: back.evening_anchor,
+            evening_done: back.evening_done,
+            review: back.review,
+            restored: true
+          } : { date: pDate, restored: true }
+        });
+        return;
+      }
+
       // 先确认这天有没有计划。没有就是契约里写的 DATE_NOT_FOUND，
       // 不能让网关抛一句英文出来
       var before = await planDaysRepo.findByDate(pDate);
@@ -312,13 +351,23 @@ const server = http.createServer(async (req, res) => {
       fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
       return;
     }
+    // ?hard=1 才是真删（回收站里点「彻底删除」走这条），默认只是放进回收站
+    var hardDel = du.searchParams.get('hard') === '1';
     try {
-      var removed = await planDaysRepo.deleteByDate(dDate);
+      var removed = await planDaysRepo.deleteByDate(dDate, hardDel);
       if (!removed) {
         fail(res, 404, 'DATE_NOT_FOUND', dDate + ' 这天在 plan_days 表里不存在，没什么可删的。');
         return;
       }
-      send(res, 200, { ok: true, data: { date: dDate, deleted: true } });
+      send(res, 200, {
+        ok: true,
+        data: {
+          date: dDate,
+          deleted: true,
+          hard: hardDel,
+          can_restore: !hardDel
+        }
+      });
     } catch (e) {
       console.error('[plan-days] 删除失败：', e && e.message ? e.message : String(e));
       fail(res, 500, 'PLAN_DAYS_DELETE_FAILED', '删除这一天的记录失败，原因已记在云函数日志里。');
@@ -359,6 +408,32 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.error('[plan-days] 读单天失败：', e && e.message ? e.message : String(e));
       fail(res, 500, 'PLAN_DAYS_READ_FAILED', '读这一天的记录失败，原因已记在云函数日志里。');
+    }
+    return;
+  }
+
+  /* ---------- GET /api/plan-days?deleted=1：回收站里那些天 ---------- */
+  if (u.searchParams.get('deleted') === '1') {
+    if (!gw.hasToken()) {
+      fail(res, 500, 'MISSING_TOKEN', '服务端没配访问凭证（环境变量 TCB_ACCESS_TOKEN）。');
+      return;
+    }
+    try {
+      var trashed = await planDaysRepo.listDeleted();
+      send(res, 200, {
+        ok: true,
+        data: trashed.map(function (r) {
+          return {
+            date: toDate(r.date),
+            morning_anchor: r.morning_anchor,
+            evening_anchor: r.evening_anchor,
+            deleted_at: r.deleted_at
+          };
+        })
+      });
+    } catch (e) {
+      console.error('[plan-days] 读回收站失败：', e && e.message ? e.message : String(e));
+      fail(res, 500, 'PLAN_DAYS_READ_FAILED', '读回收站失败，原因已记在云函数日志里。');
     }
     return;
   }

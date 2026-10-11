@@ -24,7 +24,7 @@ var gw = require('./gatewayClient');
 var TABLE = 'plan_days';
 
 // 读哪些字段。加字段只改这一行，两个接口同时生效
-var SELECT = 'date,morning_anchor,morning_done,evening_anchor,evening_done,review';
+var SELECT = 'date,morning_anchor,morning_done,evening_anchor,evening_done,review,is_deleted,deleted_at';
 
 // 契约里 status 只有四档，翻译成网关认的查询串
 var STATUS_FILTER = {
@@ -44,8 +44,11 @@ function daysAgo(n) {
  * 每一项都用 encodeURIComponent 转义：用户输入的关键词里如果带 & = * 这类
  * 符号，直接拼会改变查询的含义，转义之后它就只能被当成"一个值"。
  */
-function buildParams(q, status, days, limit) {
+function buildParams(q, status, days, limit, deletedOnly) {
   var parts = ['select=' + SELECT, 'order=date.desc'];
+
+  // 默认只看没删的；deletedOnly 为 true 时只列回收站里的
+  parts.push('is_deleted=eq.' + (deletedOnly ? 'true' : 'false'));
 
   if (q) {
     var kw = encodeURIComponent(q);
@@ -69,22 +72,36 @@ function buildParams(q, status, days, limit) {
 
 /** 表里一共多少天（不带任何筛选，只取计数不取数据，省流量） */
 async function countAll() {
-  var r = await gw.getRows({ table: TABLE, params: 'select=date&limit=1', wantCount: true });
+  var r = await gw.getRows({
+    table: TABLE,
+    params: 'select=date&is_deleted=eq.false&limit=1',
+    wantCount: true
+  });
   return r.matched;
 }
 
-/** 按条件列出计划，返回 { rows, matched } */
+/** 按条件列出计划，返回 { rows, matched }。deletedOnly 为 true 时列回收站里的 */
 async function list(options) {
   var o = options || {};
   return await gw.getRows({
     table: TABLE,
-    params: buildParams(o.q, o.status, o.days, o.limit),
+    params: buildParams(o.q, o.status, o.days, o.limit, o.deletedOnly),
     wantCount: true
   });
 }
 
-/** 查某一天，没有就返回 null */
+/** 查某一天（只查没删的），没有就返回 null */
 async function findByDate(date) {
+  var r = await gw.getRows({
+    table: TABLE,
+    params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date) + '&is_deleted=eq.false',
+    wantCount: false
+  });
+  return r.rows.length ? r.rows[0] : null;
+}
+
+/** 查某一天（不管删没删）。回收站还原、以及重复新建时对冲突做判断要用 */
+async function findAnyByDate(date) {
   var r = await gw.getRows({
     table: TABLE,
     params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date),
@@ -96,26 +113,65 @@ async function findByDate(date) {
 /**
  * 某一天有没有计划（checkins 写体检前用它确认这天挂得上，
  * 免得数据库抛一句英文外键错误、前端只能拿到 500 白屏）
+ * 只认没删的：删掉的那天不算"已有计划"，但它仍在表里，重复新建会撞主键，
+ * 那种情况由 insertByDate 处理成"从回收站拿回来"。
  */
 async function existsByDate(date) {
   var r = await gw.getRows({
     table: TABLE,
-    params: 'select=date&date=eq.' + encodeURIComponent(date),
+    params: 'select=date&date=eq.' + encodeURIComponent(date) + '&is_deleted=eq.false',
     wantCount: false
   });
   return Boolean(r.rows && r.rows.length);
 }
 
 /**
- * 删某一天：先确认这天存在（不存在返回 false，让接口层报 404），
- * 存在才真正发删除。
- * 是硬删除，不是软删——删了就找不回来，接口层的确认提示要说清这一点。
+ * 删某一天：先确认这天存在（不存在返回 false，让接口层报 404）。
+ * 默认是软删除——打个标记，数据还在，能从回收站原样拿回来。
+ * hard 为 true 才是真删（回收站里点「彻底删除」走这条），删了就找不回来。
  */
-async function deleteByDate(date) {
-  var exists = await existsByDate(date);
+async function deleteByDate(date, hard) {
+  var exists = await findAnyByDate(date);
   if (!exists) return false;
-  await gw.deleteRows({ table: TABLE, params: 'date=eq.' + encodeURIComponent(date) });
+  if (hard) {
+    await gw.deleteRows({ table: TABLE, params: 'date=eq.' + encodeURIComponent(date) });
+    return true;
+  }
+  await updateRaw(date, { is_deleted: true, deleted_at: new Date().toISOString() });
   return true;
+}
+
+/** 从回收站拿回来：把标记去掉，deleted_at 归零 */
+async function restoreByDate(date) {
+  var updated = await updateRaw(date, { is_deleted: false, deleted_at: null });
+  return updated;
+}
+
+/** 列回收站里的那些天 */
+async function listDeleted() {
+  var r = await list({ deletedOnly: true });
+  return r.rows || [];
+}
+
+/** 底层更新：不走字段白名单，只给本文件内部的软删、还原用 */
+async function updateRaw(date, patch) {
+  var r = await gw.send({
+    table: TABLE,
+    params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date),
+    method: 'PATCH',
+    prefer: 'return=representation',
+    body: patch
+  });
+  if (!r.ok) {
+    throw new Error('更新失败（网关返回 ' + r.status + '）：' + String(gw.reasonFrom(r.text)).slice(0, 200));
+  }
+  var rows;
+  try {
+    rows = JSON.parse(r.text);
+  } catch (e) {
+    rows = [];
+  }
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
 /**
@@ -138,6 +194,21 @@ async function insertByDate(date, fields) {
     body: row
   });
   if (!r.ok) {
+    // 撞主键：这天在表里已经有行了。如果那行是被软删的，就当成"重新记这一天"，
+    // 直接把它从回收站拿回来，而不是报一个死的 409。
+    var already = await findAnyByDate(date);
+    if (already && already.is_deleted) {
+      var back = await updateRaw(date, {
+        is_deleted: false,
+        deleted_at: null,
+        morning_anchor: row.morning_anchor !== undefined ? row.morning_anchor : null,
+        evening_anchor: row.evening_anchor !== undefined ? row.evening_anchor : null,
+        morning_done: false,
+        evening_done: false,
+        review: null
+      });
+      return back || already;
+    }
     throw new Error('新建失败（网关返回 ' + r.status + '）：' + String(gw.reasonFrom(r.text)).slice(0, 200));
   }
   var rows;
@@ -157,7 +228,8 @@ async function insertByDate(date, fields) {
 async function updateByDate(date, patch) {
   var r = await gw.send({
     table: TABLE,
-    params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date),
+    // 只改没删的那天：回收站里的行不该被日常改动碰到
+    params: 'select=' + SELECT + '&date=eq.' + encodeURIComponent(date) + '&is_deleted=eq.false',
     method: 'PATCH',
     prefer: 'return=representation',
     body: patch
@@ -182,8 +254,11 @@ module.exports = {
   countAll: countAll,
   list: list,
   findByDate: findByDate,
+  findAnyByDate: findAnyByDate,
   existsByDate: existsByDate,
   insertByDate: insertByDate,
   updateByDate: updateByDate,
-  deleteByDate: deleteByDate
+  deleteByDate: deleteByDate,
+  restoreByDate: restoreByDate,
+  listDeleted: listDeleted
 };

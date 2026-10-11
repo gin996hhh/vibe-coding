@@ -265,6 +265,46 @@ DELETE /api/checkins?date=2026-10-10
 - 日期走查询串 `?date=YYYY-MM-DD`，路径形式 `/api/checkins/YYYY-MM-DD` 也认
 - 前端在点「删体检」之前会弹一次确认，写明「只删体检，计划和锚点留着」
 
+### 软删除（Day 24 之后整改，2026-10-10）
+
+§9 和 §10 从这天起**默认不再真删**，改成打标记：
+
+- 字段：两张表各加 `is_deleted boolean NOT NULL DEFAULT false`、`deleted_at timestamptz`（脚本见 `db/软删除-加字段.sql`）
+- 删除：`DELETE ...?date=YYYY-MM-DD` 只把 `is_deleted` 置 true；加 `&hard=1` 才是真删
+- 查询：所有列表、单天读取默认只返回 `is_deleted = false` 的行
+- 响应多两个字段：`hard`（这次是不是真删）、`can_restore`（还能不能拿回来）
+
+## 11. 回收站：列出被删掉的那几天
+
+状态：已实现（Day 24 之后整改，2026-10-10）
+
+GET /api/plan-days?deleted=1
+
+响应（成功）：
+```json
+{ "ok": true, "data": [ { "date": "2026-10-10", "morning_anchor": "…", "evening_anchor": "…", "deleted_at": "2026-10-10T13:20:00Z" } ] }
+```
+
+失败：
+- `MISSING_TOKEN`：服务端没配访问凭证
+- `PLAN_DAYS_READ_FAILED`：读取失败，原因记在云函数日志里
+
+## 12. 从回收站还原某一天
+
+状态：已实现（Day 24 之后整改，2026-10-10）
+
+PATCH /api/plan-days?date=2026-10-10
+body：`{ "is_deleted": false }`
+
+说明：`is_deleted` 只收 `false`，意思是把这一天从回收站拿回来；要删除必须走 DELETE。还原时 checkins 里那天的体检一起恢复。响应里带 `restored: true`。
+
+失败：
+- `INVALID_DATE`：date 不对
+- `DATE_NOT_FOUND`：表里根本没有这一天
+- `NOT_IN_TRASH`：这一天本来就在，不在回收站里（409）
+
+补记：重新 POST 一个已经在回收站里的日期，等于把它拿回来（不报 409 DAY_EXISTS），内容是新提交的锚点。
+
 
 ## 表结构（Day 16 据此建表，从本契约推导）
 
@@ -273,9 +313,11 @@ goals
 
 plan_days（每日计划）
 　date（主键）、morning_anchor、morning_done、evening_anchor、evening_done、review、created_at
+　is_deleted、deleted_at（Day 24 之后加，软删除用）
 
 checkins（每日体检记录）
 　date（关联 plan_days.date）、sleep、energy、mood、created_at
+　is_deleted、deleted_at（Day 24 之后加，软删除用）
 
 plan_days 与 checkins 靠 date 关联：同一天，一边一条计划，一边一条体检。
 
