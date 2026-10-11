@@ -61,6 +61,12 @@ SCAN_SKIP_FILES = {os.path.basename(__file__)}  # 脚本自己存的是特征词
 KNOWN_SAMPLE_LINES = {
     'var FAKE_TOKEN = "sk-verifyprojectfakekey1234567890";',
 }
+# 做测试时故意塞进项目/文档的假密钥。C06 和 C07 扫描前都会先剔除这几个
+# 完整字符串。只做整体匹配，真密钥不会长这个样子，不受豁免影响。
+# 以后再塞新的测试密钥，跑完记得登记到这里，否则 C07 会一直 FAIL。
+KNOWN_FAKE_SECRETS = (
+    'sk-verifyprojectfakekey1234567890',
+)
 SCAN_MAX_BYTES = 2 * 1024 * 1024
 
 # ---------- 结果收集 ----------
@@ -290,6 +296,8 @@ def c07():
         return "SKIP", "git log 跑不动：%s" % str(e)[:60]
     blob = (p.stdout or b'') + (p.stderr or b'')
     text = blob.decode('utf-8', 'ignore')
+    for fake in KNOWN_FAKE_SECRETS:
+        text = text.replace(fake, '')
     # 裸的 postgres:// 不算凭证：文档里讲解「不走 pg 直连」时会写这个词。
     # 第一版就是被 day23 清单里那条 grep 命令自己命中了 2 次，所以要带账号密码才算。
     pat = (r"(postgres|mysql|mongodb(\+srv)?)://[^\s:'\"/]+:[^\s@'\"]+@"
@@ -297,7 +305,7 @@ def c07():
            r"|AKIA[0-9A-Z]{16}"
            r"|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY"
            r"|eyJ[A-Za-z0-9_-]{100,}\.[A-Za-z0-9_-]{20,}")
-    found = re.findall(pat, text)
+    found = [m.group(0) for m in re.finditer(pat, text)]
     if found:
         return "FAIL", "历史里命中 %d 处，例：%s" % (len(found), found[0])
     return "PASS", "0 命中（git log --all -p 全量历史，共 %d 字节）" % len(blob)
