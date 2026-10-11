@@ -296,7 +296,9 @@ def c07():
         return "SKIP", "git log 跑不动：%s" % str(e)[:60]
     blob = (p.stdout or b'') + (p.stderr or b'')
     text = blob.decode('utf-8', 'ignore')
+    removed = 0
     for fake in KNOWN_FAKE_SECRETS:
+        removed += text.count(fake)
         text = text.replace(fake, '')
     # 裸的 postgres:// 不算凭证：文档里讲解「不走 pg 直连」时会写这个词。
     # 第一版就是被 day23 清单里那条 grep 命令自己命中了 2 次，所以要带账号密码才算。
@@ -308,7 +310,14 @@ def c07():
     found = [m.group(0) for m in re.finditer(pat, text)]
     if found:
         return "FAIL", "历史里命中 %d 处，例：%s" % (len(found), found[0])
-    return "PASS", "0 命中（git log --all -p 全量历史，共 %d 字节）" % len(blob)
+    # 剔除数量必须写出来。Day 25 抽查时核对过：只报「0 命中」的话，
+    # 别人照着标准自己 grep 一遍会得到 5 处（同一个登记过的测试假密钥），
+    # 对不上就会以为这项是摆设。写清剔除多少，两边才对得上。
+    note = "真凭证 0 命中（git log --all -p 全量历史，共 %d 字节）" % len(blob)
+    if removed:
+        note += "；另有 %d 处已登记的测试假密钥被剔除（%s）" % (
+            removed, "、".join(s[:6] + "…" for s in KNOWN_FAKE_SECRETS))
+    return "PASS", note
 
 
 # =====================================================================

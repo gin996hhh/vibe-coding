@@ -46,7 +46,7 @@ python .workbuddy/skills/verify-project/verify.py --local
 | C04 | 写接口闭环 | 用探针日期 2099-01-01 走 POST 201、PATCH 200、DELETE 200，最后再查一次该日期必须查不到 | 契约写着已实现、实际返回 405；以及回归脚本往库里留测试数据 |
 | C05 | 跨域预检 | OPTIONS 的 `Access-Control-Allow-Methods` 里 GET、POST、PATCH、DELETE 四个都在 | 加了新方法没同步 Allow，浏览器直接 405 |
 | C06 | 工作区密钥 | 命中 0 处。光有关键词不算，等号后面必须有值且值得像凭证 | 密钥写进代码提交上去 |
-| C07 | Git 历史密钥 | `git log --all -p` 全量历史里命中 0 处 | 工作区删了，历史里还留着也算泄漏 |
+| C07 | Git 历史密钥 | `git log --all -p` 全量历史里真凭证命中 0 处；已登记的测试假密钥不算，但证据行必须写明剔除了几处 | 工作区删了，历史里还留着也算泄漏 |
 | C08 | gitignore 与模板 | `.env` 被忽略，`.env.example` 能进仓库，模板里凭证字段全空 | 模板没入库同伴配不了；模板里带了真值 |
 | C09 | 数据库 | 数据网关读 `plan_days` 和 `checkins` 都返回 200；401 单独报「API Key 失效，去控制台重建」 | 表被 DROP 了没人发现；网关 Key 突然失效 |
 | C10 | 共享层副本 | 部署包里每个共享文件与 `cloudfunctions/_shared` 源码哈希一致 | 改了源码没分发，两个函数行为不一致 |
