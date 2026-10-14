@@ -42,6 +42,17 @@
     if (r.morning_done || r.evening_done) return true;
     if (r.state_score !== null && r.state_score !== undefined) return true;
     if (r.method_text || r.hard_start_text) return true;
+    // Day 27 修：写了锚点就算有内容。以前只看「勾没勾完成」，
+    // 导致用户新建一天、填了锚点却看不见它，以为没建成。
+    if (r.morning_anchor || r.evening_anchor) return true;
+    // Day 27 修：用户主动新建的空行也让它出现。以前会被过滤掉，
+    // 用户点了「新建」等于什么都没发生。
+    if (r.source === 'manual') return true;
+    // Day 27 补：兜底。plan_days 里的每一行都是用户主动点「新建」才产生的，
+    // 后端不会凭空插行，所以「有这一行」本身就等于「用户想看见它」。
+    // 云端已有一条 2026-10-14 的空行（两个锚点都是 null，没勾完成），
+    // 不兜底的话它会永远隐身，用户会以为那天的东西丢了。
+    if (!r.is_deleted) return true;
     return false;
   }
 

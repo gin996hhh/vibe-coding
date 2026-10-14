@@ -245,6 +245,9 @@
       var body = { date: date };
       if (morning) body.morning_anchor = morning;
       if (evening) body.evening_anchor = evening;
+      // Day 27 修：两个锚点都空时补一个占位。
+      // 以前这种情况建出来的行会被列表过滤掉，用户点了「新建」等于白点。
+      if (!body.morning_anchor && !body.evening_anchor) body.morning_anchor = '待定';
       return fetch(API_BASE + '/api/plan-days', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -279,10 +282,13 @@
           note.hidden = false;
           return;
         }
+        // Day 27 修：两个锚点都空也让它建，建完自动翻过去。
+        // 以前这样会被列表过滤掉，用户点了等于没反应。
         btn.disabled = true;
         createDay(date, mIn.value.trim(), eIn.value.trim())
           .then(function () {
-            note.textContent = '建好了：' + date + '。列表里已经有了，接着勾锚点或写复盘。';
+            pendingFocusDate = date;
+            note.textContent = '建好了：' + date + '。已经翻到那一行了，接着勾锚点或写复盘。';
             note.hidden = false;
             mIn.value = '';
             eIn.value = '';
@@ -305,6 +311,12 @@
       if (/fetch|network|timeout|abort|Failed to/i.test(m)) {
         console.error('[records] 网络类错误（原文留给排查）：', m);
         return fallback || '网络不通，稍后再试一次';
+      }
+      // Day 27 修：重复建同一天时，后端报错里带着接口方法名（PATCH）
+      // 和状态码（409），使用者看不懂，统一翻成人话。
+      if (/PATCH|PUT|\b409\b/i.test(m) || /已经(有|存在|建过|新建过)/.test(m)) {
+        console.error('[records] 重复建同一天（原文留给排查）：', m);
+        return '这一天已经有了，往下面找，直接在上面改就行，不用再建一次。';
       }
       return m;
     }
@@ -419,6 +431,8 @@
 
     /* ---------- 每天一块 ---------- */
 
+    var pendingFocusDate = null;
+
     function renderDays(days, total) {
       var listEl = document.getElementById('dayList');
       listEl.innerHTML = '';
@@ -433,8 +447,12 @@
         return;
       }
 
+      var focusBox = null;
+
       days.forEach(function (d) {
         var box = el('div', 'rec rec-day' + (d.date === today ? ' today' : ''));
+        box.setAttribute('data-date', d.date);
+        if (pendingFocusDate && d.date === pendingFocusDate) focusBox = box;
 
         var head = el('div', 'rec-head');
         head.appendChild(el('span', 'rec-date', d.label + ' · ' + d.weekday));
@@ -609,6 +627,17 @@
 
         listEl.appendChild(box);
       });
+
+      // Day 27 修：新建完自动翻到那一天，别让用户自己找
+      if (focusBox) {
+        pendingFocusDate = null;
+        try {
+          focusBox.classList.add('just-added');
+          focusBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch (e) {
+          focusBox.scrollIntoView();
+        }
+      }
     }
 
     /* ---------- 回收站 ----------

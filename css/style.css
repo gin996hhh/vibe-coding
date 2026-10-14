@@ -369,6 +369,8 @@ a { color: var(--sky); }
 /* 记录台：一天一块，块头左侧一条竖线，扫一眼就知道这是新的一天 */
 .rec-day { border-left: 2px solid var(--line); padding-left: 13px; }
 .rec-day.today { border-left-color: var(--sky); }
+/* Day 27：刚新建的那一天，让它一眼能认出来 */
+.rec-day.just-added { border-left-color: var(--sky); background: var(--card-hi); }
 
 /* ---------- 四种页面状态：加载中 / 空 / 错误 ---------- */
 
